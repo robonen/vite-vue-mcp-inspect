@@ -9,14 +9,26 @@ interface SessionEntry {
   transport: StreamableHTTPServerTransport
 }
 
+/** 1 MB — generous for JSON-RPC MCP messages. */
+const MAX_BODY_SIZE = 1024 * 1024
+
 /** Parse the raw body of an IncomingMessage as JSON. */
 async function readJsonBody(req: IncomingMessage): Promise<unknown> {
   return new Promise((resolve, reject) => {
-    let data = ''
-    req.setEncoding('utf8')
-    req.on('data', (chunk: string) => { data += chunk })
+    const chunks: Buffer[] = []
+    let size = 0
+    req.on('data', (chunk: Buffer) => {
+      size += chunk.length
+      if (size > MAX_BODY_SIZE) {
+        req.destroy()
+        reject(new Error('Request body too large'))
+        return
+      }
+      chunks.push(chunk)
+    })
     req.on('end', () => {
       try {
+        const data = Buffer.concat(chunks, size).toString('utf8')
         resolve(data ? JSON.parse(data) : undefined)
       }
       catch (err) {
@@ -57,8 +69,10 @@ export async function setupTransports(
         try {
           body = await readJsonBody(req)
         }
-        catch {
-          sendJsonError(sRes, 400, 'Invalid JSON body')
+        catch (e) {
+          const message = e instanceof Error ? e.message : 'Invalid JSON body'
+          const status = message === 'Request body too large' ? 413 : 400
+          sendJsonError(sRes, status, message)
           return
         }
 
@@ -71,9 +85,13 @@ export async function setupTransports(
               sessions.set(id, { server, transport })
             },
           })
+          let closing = false
           transport.onclose = () => {
             if (transport.sessionId) sessions.delete(transport.sessionId)
-            server.close().catch(() => {})
+            if (!closing) {
+              closing = true
+              server.close().catch(() => {})
+            }
           }
           await server.connect(transport)
           await transport.handleRequest(req, sRes, body)
