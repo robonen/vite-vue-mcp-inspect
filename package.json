@@ -1,0 +1,19 @@
+{
+  "name": "vue-mcp",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "pnpm --filter vite-vue-mcp-inspect build",
+    "dev": "pnpm --filter vite-vue-mcp-inspect dev",
+    "play": "pnpm --filter vue-mcp-playground dev",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "lint": "oxlint -c oxlint.config.ts"
+  },
+  "devDependencies": {
+    "@robonen/oxlint": "^0.0.2",
+    "@robonen/tsconfig": "^0.0.2",
+    "oxlint": "^1.0.0",
+    "typescript": "~6.0.2"
+  }
+}

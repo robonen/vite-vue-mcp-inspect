@@ -1,0 +1,7 @@
+{
+  "extends": "@robonen/tsconfig/tsconfig.json",
+  "include": ["src/__tests__/**/*.ts"],
+  "compilerOptions": {
+    "noEmit": true
+  }
+}

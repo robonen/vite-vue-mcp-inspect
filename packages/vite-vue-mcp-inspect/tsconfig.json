@@ -1,0 +1,5 @@
+{
+  "extends": "@robonen/tsconfig/tsconfig.json",
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist", "src/client", "src/__tests__"]
+}
