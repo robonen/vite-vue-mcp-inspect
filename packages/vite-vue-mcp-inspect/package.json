@@ -1,6 +1,6 @@
 {
   "name": "vite-vue-mcp-inspect",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "license": "MIT",
   "description": "Vite plugin that turns a running Vue app into an MCP server",
   "keywords": [
@@ -15,7 +15,7 @@
   "author": "Robonen Andrew <robonenandrew@gmail.com>",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/robonen/vue-mcp.git",
+    "url": "git+https://github.com/robonen/vite-vue-mcp-inspect.git",
     "directory": "packages/vite-vue-mcp-inspect"
   },
   "packageManager": "pnpm@10.15.0",
