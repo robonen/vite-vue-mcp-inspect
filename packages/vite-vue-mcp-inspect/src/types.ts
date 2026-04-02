@@ -137,6 +137,7 @@ export interface ServerRpcFunctions {
   getAppInfo(query: { event: string }): void
   reloadApp(query: { event: string }): void
   getComponentByFile(query: { filePath: string; event: string }): void
+  getReactivityRelationships(query: { event: string; componentName: string }): void
 }
 
 // Browser → Server: callbacks that resolve pending MCP tool promises
@@ -155,6 +156,7 @@ export interface ClientRpcFunctions {
   onAppInfoUpdated(event: string, data: unknown): void
   onReloadAppDone(event: string): void
   onComponentByFileUpdated(event: string, data: unknown): void
+  onReactivityRelationshipsUpdated(event: string, data: unknown): void
 }
 
 export type AllRpcFunctions = ServerRpcFunctions & ClientRpcFunctions

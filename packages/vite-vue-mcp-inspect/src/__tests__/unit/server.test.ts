@@ -33,6 +33,7 @@ function makeCtx(responses: Partial<Record<string, unknown>> = {}): VueMcpContex
     getAppInfo: respond('appInfo'),
     reloadApp: ({ event }: { event: string }) => ctx.hooks.callHook(event, null),
     getComponentByFile: respond('componentByFile'),
+    getReactivityRelationships: respond('reactivityRelationships'),
   } as any
 
   return ctx
@@ -64,10 +65,10 @@ function rawText(result: Awaited<ReturnType<Client['callTool']>>): string {
 // ────────────────────────────────────────────────────────────────────────────
 
 describe('tool registration', () => {
-  it('registers exactly 14 tools', async () => {
+  it('registers exactly 15 tools', async () => {
     const { client } = await setup()
     const { tools } = await client.listTools()
-    expect(tools).toHaveLength(14)
+    expect(tools).toHaveLength(15)
   })
 })
 
@@ -100,6 +101,7 @@ describe('get-component-tree', () => {
       getAppInfo: () => {},
       reloadApp: () => {},
       getComponentByFile: () => {},
+      getReactivityRelationships: () => {},
     } as any
 
     const server = createMcpServer({}, ctx, 50)
@@ -333,6 +335,7 @@ describe('reload-app', () => {
       getAppInfo: () => {},
       reloadApp: () => {},
       getComponentByFile: () => {},
+      getReactivityRelationships: () => {},
     } as any
 
     const server = createMcpServer({}, ctx, 50)

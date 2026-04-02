@@ -414,6 +414,238 @@ const rpc = createRPCClient<any, any>(
         rpc.onComponentByFileUpdated(query.event, { found: false, error: String(err) })
       }
     },
+
+    // ── Reactivity relationships ────────────────────────────────────────
+    async getReactivityRelationships(query: { event: string; componentName: string }) {
+      try {
+        const result = await withComponentNode(
+          query.componentName,
+          async (node) => {
+            const instance = activeAppRecord.value?.instanceMap?.get(node.id)
+            if (!instance) {
+              return { graphNodes: [], relationships: [] }
+            }
+
+            const raw = (instance as any).devtoolsRawSetupState || {}
+            const stateItems: ReactivityStateItem[] = []
+
+            for (const key of Object.keys(raw)) {
+              const rawData = raw[key]
+              if (!rawData) continue
+
+              const isRefLike = rawData?.__v_isRef === true
+              const isReactiveLike = rawData?.__v_isReactive === true
+              const isComputedLike = isRefLike && typeof rawData?.effect === 'object'
+
+              if (!isRefLike && !isReactiveLike) continue
+
+              const subs = processReactivitySubs(rawData)
+              const deps = processReactivityDeps(rawData)
+
+              const stateType = isComputedLike ? 'computed' : isRefLike ? 'ref' : 'reactive'
+
+              stateItems.push({
+                key,
+                stateType,
+                reference: rawData,
+                subs,
+                deps,
+              })
+            }
+
+            return buildReactivityRelationships(stateItems)
+          },
+          (error) => ({ error }),
+        )
+        rpc.onReactivityRelationshipsUpdated(query.event, stringify(result))
+      }
+      catch (err) {
+        rpc.onReactivityRelationshipsUpdated(query.event, { error: String(err) })
+      }
+    },
   },
   { timeout: -1 },
 )
+
+// ── Reactivity helpers ───────────────────────────────────────────────────
+
+interface ReactivityDep {
+  type: string
+  reference: unknown
+  data: Record<string, unknown>
+}
+
+interface ReactivityStateItem {
+  key: string
+  stateType: string
+  reference: unknown
+  subs: ReactivityDep[]
+  deps: ReactivityDep[]
+}
+
+// Vue 3.5+ reactivity internals:
+// - RefImpl/ComputedRefImpl have `.dep: Dep` (a Dep object that tracks subscribers)
+// - Dep.subs is the TAIL of a doubly-linked list of Link nodes; walk with .prevSub
+// - ComputedRefImpl implements Subscriber, so it has `.deps` (head) / `.depsTail` (tail)
+// - ReactiveEffect also implements Subscriber with the same deps/depsTail
+// - Link { sub: Subscriber, dep: Dep, nextDep, prevDep, nextSub, prevSub }
+
+function getSubscriberType(sub: any): string {
+  const name = sub?.constructor?.name
+  if (name === 'ReactiveEffect') {
+    if (sub.fn?.name === 'componentUpdateFn') return 'render'
+    // Vue 3.5+ watch/watchEffect all use ReactiveEffect with a scheduler
+    if (sub.scheduler) return 'watch'
+    return 'effect'
+  }
+  if (name === 'ComputedRefImpl') return 'computed'
+  if (sub?.__v_isRef === true) {
+    if (typeof sub?.effect === 'object') return 'computed'
+    return 'ref'
+  }
+  return 'unknown'
+}
+
+function processReactivitySubs(state: any): ReactivityDep[] {
+  // Subscribers are at state.dep.subs (Link tail), walk backwards with prevSub
+  const depObj = (state as any).dep
+  if (!depObj?.subs) return []
+
+  const result: ReactivityDep[] = []
+  for (let link = depObj.subs; link; link = link.prevSub) {
+    const sub = link.sub
+    if (!sub) continue
+
+    const type = getSubscriberType(sub)
+    const data: Record<string, unknown> = {}
+
+    if (type === 'render' || type === 'effect' || type === 'watch') {
+      data.fn = sub.fn?.name || '(anonymous)'
+    }
+    else {
+      data.value = sub._value ?? sub.value
+    }
+
+    result.push({ type, reference: sub, data })
+  }
+  return result
+}
+
+function processReactivityDeps(state: any): ReactivityDep[] {
+  // Dependencies exist on Subscriber types (ComputedRefImpl, ReactiveEffect)
+  // state.deps is the HEAD of the linked list, walk forward with nextDep
+  if (!state.deps) return []
+
+  const result: ReactivityDep[] = []
+  for (let link = state.deps; link; link = link.nextDep) {
+    const dep = link.dep
+    if (!dep) continue
+
+    if (dep.computed) {
+      // This Dep belongs to a ComputedRefImpl — use the computed as the reference
+      result.push({
+        type: 'computed',
+        reference: dep.computed,
+        data: { value: dep.computed._value },
+      })
+    }
+    else {
+      // This is a plain Dep (ref or reactive property) — use Dep itself, resolve later
+      result.push({
+        type: 'dep',
+        reference: dep,
+        data: { key: dep.key },
+      })
+    }
+  }
+  return result
+}
+
+function buildReactivityRelationships(stateItems: ReactivityStateItem[]) {
+  type GraphNode = { type: string; data: Record<string, unknown>; id: string }
+  const nodeMap = new Map<unknown, GraphNode>()
+  let idCounter = 0
+
+  // Pre-build a Dep→stateItem map so deps can be resolved to their owning state item
+  const depToItem = new Map<unknown, ReactivityStateItem>()
+  for (const item of stateItems) {
+    const depObj = (item.reference as any)?.dep
+    if (depObj) depToItem.set(depObj, item)
+  }
+
+  // 1. Register all state items as graph nodes
+  for (const item of stateItems) {
+    if (!nodeMap.has(item.reference)) {
+      nodeMap.set(item.reference, {
+        type: item.stateType,
+        data: { key: item.key, value: (item.reference as any)?._value ?? (item.reference as any)?.value },
+        id: String(idCounter++),
+      })
+    }
+  }
+
+  // 2. Register external nodes (effects, watchers, computeds not in state items)
+  for (const item of stateItems) {
+    for (let i = 0; i < item.subs.length; i++) {
+      const sub = item.subs[i]
+      if (!nodeMap.has(sub.reference)) {
+        nodeMap.set(sub.reference, { type: sub.type, data: { ...sub.data }, id: String(idCounter++) })
+      }
+    }
+    for (let i = 0; i < item.deps.length; i++) {
+      const dep = item.deps[i]
+      // Resolve Dep objects to their owning state item's reference
+      const resolvedRef = dep.type === 'dep' ? depToItem.get(dep.reference)?.reference : dep.reference
+      if (resolvedRef && !nodeMap.has(resolvedRef)) {
+        const matched = dep.type === 'dep' ? depToItem.get(dep.reference) : null
+        nodeMap.set(resolvedRef, {
+          type: matched ? matched.stateType : dep.type,
+          data: matched ? { key: matched.key } : { ...dep.data },
+          id: String(idCounter++),
+        })
+      }
+    }
+  }
+
+  // 3. Build graph nodes array
+  const graphNodes: GraphNode[] = []
+  for (const value of nodeMap.values()) {
+    graphNodes.push(value)
+  }
+
+  // 4. Build edges with inline deduplication (O(n) via Set)
+  const edgeSet = new Set<string>()
+  const relationships: { id: string; from: string; to: string }[] = []
+
+  for (const item of stateItems) {
+    const self = nodeMap.get(item.reference)
+    if (!self) continue
+
+    // Subs: item → subscriber (subscriber depends on item)
+    for (let i = 0; i < item.subs.length; i++) {
+      const subNode = nodeMap.get(item.subs[i].reference)
+      if (!subNode) continue
+      const key = self.id < subNode.id ? `${self.id}\0${subNode.id}` : `${subNode.id}\0${self.id}`
+      if (!edgeSet.has(key)) {
+        edgeSet.add(key)
+        relationships.push({ id: String(idCounter++), from: self.id, to: subNode.id })
+      }
+    }
+
+    // Deps: dependency → item (item depends on dependency)
+    for (let i = 0; i < item.deps.length; i++) {
+      const dep = item.deps[i]
+      const resolvedRef = dep.type === 'dep' ? depToItem.get(dep.reference)?.reference : dep.reference
+      if (!resolvedRef) continue
+      const depNode = nodeMap.get(resolvedRef)
+      if (!depNode) continue
+      const key = depNode.id < self.id ? `${depNode.id}\0${self.id}` : `${self.id}\0${depNode.id}`
+      if (!edgeSet.has(key)) {
+        edgeSet.add(key)
+        relationships.push({ id: String(idCounter++), from: depNode.id, to: self.id })
+      }
+    }
+  }
+
+  return { graphNodes, relationships }
+}

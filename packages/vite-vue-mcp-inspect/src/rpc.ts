@@ -26,6 +26,7 @@ export function createServerRpc(ctx: VueMcpContext): AllRpcFunctions {
     getAppInfo: () => {},
     reloadApp: () => {},
     getComponentByFile: () => {},
+    getReactivityRelationships: () => {},
 
     // ── Incoming callbacks (browser → server) ─────────────────────────
     onInspectorTreeUpdated(event, data) {
@@ -68,6 +69,9 @@ export function createServerRpc(ctx: VueMcpContext): AllRpcFunctions {
       ctx.hooks.callHook(event, null)
     },
     onComponentByFileUpdated(event, data) {
+      ctx.hooks.callHook(event, data)
+    },
+    onReactivityRelationshipsUpdated(event, data) {
       ctx.hooks.callHook(event, data)
     },
   }

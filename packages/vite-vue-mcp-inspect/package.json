@@ -1,6 +1,6 @@
 {
   "name": "vite-vue-mcp-inspect",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "license": "MIT",
   "description": "Vite plugin that turns a running Vue app into an MCP server",
   "keywords": [

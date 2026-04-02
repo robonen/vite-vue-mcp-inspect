@@ -2,7 +2,7 @@
   "servers": {
     "vue-mcp": {
       "type": "http",
-      "url": "http://localhost:5174/__mcp/mcp"
+      "url": "http://localhost:5173/__mcp/mcp"
     }
   }
 }
