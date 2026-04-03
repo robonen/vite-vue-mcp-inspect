@@ -6,7 +6,8 @@ import type { Browser, Page } from 'playwright'
 import { chromium } from 'playwright'
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
-const TEST_PORT = 5174
+const TEST_PORT = 5173
+const TEST_PROTOCOL = process.env.TEST_PROTOCOL === 'https' ? 'https' : 'http'
 
 let vite: ViteDevServer
 let browser: Browser
@@ -22,8 +23,9 @@ export async function setup() {
 
   // Launch Chromium and load the playground
   browser = await chromium.launch()
-  page = await browser.newPage()
-  await page.goto(`http://localhost:${TEST_PORT}/`)
+  const context = await browser.newContext({ ignoreHTTPSErrors: TEST_PROTOCOL === 'https' })
+  page = await context.newPage()
+  await page.goto(`${TEST_PROTOCOL}://localhost:${TEST_PORT}/`)
 
   // Wait for Vue DevTools hook to be installed (overlay RPC connected)
   await page.waitForFunction(

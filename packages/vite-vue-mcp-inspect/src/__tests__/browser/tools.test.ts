@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 
-const MCP_URL = 'http://localhost:5174/__mcp/mcp'
+const MCP_URL = process.env.MCP_URL || 'http://localhost:5173/__mcp/mcp'
 
 let client: Client
 
@@ -16,9 +16,9 @@ afterAll(async () => {
 })
 
 describe('MCP tools (browser integration)', () => {
-  it('lists all 14 tools', async () => {
+  it('lists all 15 tools', async () => {
     const { tools } = await client.listTools()
-    expect(tools).toHaveLength(14)
+    expect(tools).toHaveLength(15)
   })
 
   it('get-component-tree returns real Vue tree', async () => {

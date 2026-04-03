@@ -23,6 +23,26 @@ export default defineConfig({
 ```
 
 When Vite starts, the MCP endpoint is available at `/__mcp/mcp` by default.
+The plugin automatically uses `https://` in the MCP URL when Vite is running with `server.https`.
+
+Example with certificates:
+
+```ts
+// vite.config.ts
+import fs from 'node:fs'
+import { defineConfig } from 'vite'
+import VueMcp from 'vite-vue-mcp-inspect'
+
+export default defineConfig({
+  server: {
+    https: {
+      key: fs.readFileSync('./certs/localhost-key.pem'),
+      cert: fs.readFileSync('./certs/localhost.pem'),
+    },
+  },
+  plugins: [VueMcp()],
+})
+```
 
 ## Built-in Tools
 

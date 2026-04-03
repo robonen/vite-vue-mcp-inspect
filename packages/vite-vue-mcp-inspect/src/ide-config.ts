@@ -6,7 +6,7 @@ import path from 'node:path'
 export interface IdeConfigOptions {
   /** Workspace root (from searchForWorkspaceRoot) */
   root: string
-  /** Streamable HTTP endpoint URL, e.g. http://localhost:5173/__mcp/mcp */
+  /** Streamable HTTP endpoint URL, e.g. http://localhost:5173/__mcp/mcp or https://localhost:5173/__mcp/mcp */
   mcpUrl: string
   cursor: false | { serverName: string }
   windsurf: false | { serverName: string }

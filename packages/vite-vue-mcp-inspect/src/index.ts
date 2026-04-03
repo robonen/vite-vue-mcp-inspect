@@ -44,6 +44,10 @@ function resolveClaudeDesktopConfig(
   }
 }
 
+function getMcpProtocol(config: ResolvedConfig): 'http' | 'https' {
+  return config.server.https ? 'https' : 'http'
+}
+
 export default function VueMcp(options: VueMcpOptions = {}): Plugin {
   const {
     host: _host,
@@ -143,8 +147,9 @@ export default function VueMcp(options: VueMcpOptions = {}): Plugin {
       const resolvedHost = _host ?? 'localhost'
       const address = vite.httpServer?.address()
       const port = typeof address === 'object' && address ? address.port : 5173
+      const protocol = getMcpProtocol(config)
 
-      const mcpUrl = `http://${resolvedHost}:${port}${mcpPath}/mcp`
+      const mcpUrl = `${protocol}://${resolvedHost}:${port}${mcpPath}/mcp`
 
       // Update IDE configs + print URL once the server is listening
       const root = searchForWorkspaceRoot(config.root)
@@ -162,7 +167,7 @@ export default function VueMcp(options: VueMcpOptions = {}): Plugin {
         vite.httpServer.once('listening', () => {
           const actualAddress = vite.httpServer?.address()
           const actualPort = typeof actualAddress === 'object' && actualAddress ? actualAddress.port : port
-          const actualMcpUrl = `http://${resolvedHost}:${actualPort}${mcpPath}/mcp`
+          const actualMcpUrl = `${protocol}://${resolvedHost}:${actualPort}${mcpPath}/mcp`
 
           if (printUrl) {
             setTimeout(() => {
