@@ -18,7 +18,21 @@ const PINIA_INSPECTOR_ID = 'pinia'
 
 devtools.init()
 
+console.log('[vue-mcp] overlay mounted')
+
 // ── Helpers ──────────────────────────────────────────────────────────────
+
+/** Race a promise against a timeout. Rejects if the promise doesn't settle in time. */
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`[vue-mcp] ${label} timed out after ${ms}ms`)), ms),
+    ),
+  ])
+}
+
+const DEVTOOLS_TIMEOUT = 5000
 
 function flattenChildren(node: any): any[] {
   const result: any[] = []
@@ -49,10 +63,14 @@ async function withComponentNode<S, E>(
   onSuccess: (node: any) => Promise<S> | S,
   onError: (error: string) => E,
 ): Promise<S | E> {
-  const tree = await devtools.api.getInspectorTree({
-    inspectorId: COMPONENTS_INSPECTOR_ID,
-    filter: '',
-  })
+  const tree = await withTimeout(
+    devtools.api.getInspectorTree({
+      inspectorId: COMPONENTS_INSPECTOR_ID,
+      filter: '',
+    }),
+    DEVTOOLS_TIMEOUT,
+    'getInspectorTree',
+  )
   const { node, error } = findNode(tree[0], name)
   if (error) return onError(error)
   return onSuccess(node)
@@ -90,10 +108,14 @@ const rpc = createRPCClient<any, any>(
     // ── Component tree ──────────────────────────────────────────────────
     async getInspectorTree(query: { event: string }) {
       try {
-        const tree = await devtools.api.getInspectorTree({
-          inspectorId: COMPONENTS_INSPECTOR_ID,
-          filter: '',
-        })
+        const tree = await withTimeout(
+          devtools.api.getInspectorTree({
+            inspectorId: COMPONENTS_INSPECTOR_ID,
+            filter: '',
+          }),
+          DEVTOOLS_TIMEOUT,
+          'getInspectorTree',
+        )
         rpc.onInspectorTreeUpdated(query.event, tree[0])
       }
       catch (err) {
@@ -103,17 +125,25 @@ const rpc = createRPCClient<any, any>(
 
     async getDetailedComponentTree(query: { event: string }) {
       try {
-        const tree = await devtools.api.getInspectorTree({
-          inspectorId: COMPONENTS_INSPECTOR_ID,
-          filter: '',
-        })
+        const tree = await withTimeout(
+          devtools.api.getInspectorTree({
+            inspectorId: COMPONENTS_INSPECTOR_ID,
+            filter: '',
+          }),
+          DEVTOOLS_TIMEOUT,
+          'getInspectorTree',
+        )
         const all = flattenChildren(tree[0])
         const detailed = await mapConcurrent(all, 10, async (node: any) => {
           try {
-            const state = await devtools.api.getInspectorState({
-              inspectorId: COMPONENTS_INSPECTOR_ID,
-              nodeId: node.id,
-            })
+            const state = await withTimeout(
+              devtools.api.getInspectorState({
+                inspectorId: COMPONENTS_INSPECTOR_ID,
+                nodeId: node.id,
+              }),
+              DEVTOOLS_TIMEOUT,
+              'getInspectorState',
+            )
             return { name: node.name, id: node.id, file: node.file, state: stringify(state) }
           }
           catch {
@@ -133,10 +163,14 @@ const rpc = createRPCClient<any, any>(
         const result = await withComponentNode(
           query.componentName,
           async (node) => {
-            const state = await devtools.api.getInspectorState({
-              inspectorId: COMPONENTS_INSPECTOR_ID,
-              nodeId: node.id,
-            })
+            const state = await withTimeout(
+              devtools.api.getInspectorState({
+                inspectorId: COMPONENTS_INSPECTOR_ID,
+                nodeId: node.id,
+              }),
+              DEVTOOLS_TIMEOUT,
+              'getInspectorState',
+            )
             return stringify(state)
           },
           (error) => ({ error }),
@@ -160,18 +194,22 @@ const rpc = createRPCClient<any, any>(
         const result = await withComponentNode(
           query.componentName,
           async (node) => {
-            await (devtools as any).ctx.api.editInspectorState({
-              inspectorId: COMPONENTS_INSPECTOR_ID,
-              nodeId: node.id,
-              path: query.path,
-              state: {
-                new: null,
-                remove: false,
-                type: query.valueType,
-                value: query.value,
-              },
-              type: undefined,
-            })
+            await withTimeout(
+              (devtools as any).ctx.api.editInspectorState({
+                inspectorId: COMPONENTS_INSPECTOR_ID,
+                nodeId: node.id,
+                path: query.path,
+                state: {
+                  new: null,
+                  remove: false,
+                  type: query.valueType,
+                  value: query.value,
+                },
+                type: undefined,
+              }),
+              DEVTOOLS_TIMEOUT,
+              'editInspectorState',
+            )
             return { success: true as const }
           },
           (error) => ({ success: false as const, error }),
@@ -262,10 +300,14 @@ const rpc = createRPCClient<any, any>(
       const wasHighPerf = devtoolsState.highPerfModeEnabled
       if (wasHighPerf) toggleHighPerfMode(false)
       try {
-        const tree = await devtools.api.getInspectorTree({
-          inspectorId: PINIA_INSPECTOR_ID,
-          filter: '',
-        })
+        const tree = await withTimeout(
+          devtools.api.getInspectorTree({
+            inspectorId: PINIA_INSPECTOR_ID,
+            filter: '',
+          }),
+          DEVTOOLS_TIMEOUT,
+          'getInspectorTree(pinia)',
+        )
         rpc.onPiniaTreeUpdated(query.event, tree)
       }
       catch (err) {
@@ -285,10 +327,14 @@ const rpc = createRPCClient<any, any>(
         const prevNodeId = inspector?.selectedNodeId
         try {
           if (inspector) inspector.selectedNodeId = query.storeName
-          const state = await (devtools as any).ctx.api.getInspectorState({
-            inspectorId: PINIA_INSPECTOR_ID,
-            nodeId: query.storeName,
-          })
+          const state = await withTimeout(
+            (devtools as any).ctx.api.getInspectorState({
+              inspectorId: PINIA_INSPECTOR_ID,
+              nodeId: query.storeName,
+            }),
+            DEVTOOLS_TIMEOUT,
+            'getInspectorState(pinia)',
+          )
           rpc.onPiniaInfoUpdated(query.event, stringify(state))
         }
         finally {
@@ -322,18 +368,22 @@ const rpc = createRPCClient<any, any>(
         const prevNodeId = inspector.selectedNodeId
         try {
           inspector.selectedNodeId = query.storeName
-          await (devtools as any).ctx.api.editInspectorState({
-            inspectorId: PINIA_INSPECTOR_ID,
-            nodeId: query.storeName,
-            path: query.path,
-            state: {
-              new: null,
-              remove: false,
-              type: query.valueType,
-              value: query.value,
-            },
-            type: undefined,
-          })
+          await withTimeout(
+            (devtools as any).ctx.api.editInspectorState({
+              inspectorId: PINIA_INSPECTOR_ID,
+              nodeId: query.storeName,
+              path: query.path,
+              state: {
+                new: null,
+                remove: false,
+                type: query.valueType,
+                value: query.value,
+              },
+              type: undefined,
+            }),
+            DEVTOOLS_TIMEOUT,
+            'editInspectorState(pinia)',
+          )
           rpc.onPiniaStateEditDone(query.event, { success: true })
         }
         finally {
@@ -386,10 +436,14 @@ const rpc = createRPCClient<any, any>(
     // ── Get component by file ───────────────────────────────────────────
     async getComponentByFile(query: { filePath: string; event: string }) {
       try {
-        const tree = await devtools.api.getInspectorTree({
-          inspectorId: COMPONENTS_INSPECTOR_ID,
-          filter: '',
-        })
+        const tree = await withTimeout(
+          devtools.api.getInspectorTree({
+            inspectorId: COMPONENTS_INSPECTOR_ID,
+            filter: '',
+          }),
+          DEVTOOLS_TIMEOUT,
+          'getInspectorTree',
+        )
         const all = flattenChildren(tree[0])
         const match = all.find((n: any) => n.file?.endsWith(query.filePath))
         if (!match) {
@@ -399,10 +453,14 @@ const rpc = createRPCClient<any, any>(
           })
           return
         }
-        const state = await devtools.api.getInspectorState({
-          inspectorId: COMPONENTS_INSPECTOR_ID,
-          nodeId: match.id,
-        })
+        const state = await withTimeout(
+          devtools.api.getInspectorState({
+            inspectorId: COMPONENTS_INSPECTOR_ID,
+            nodeId: match.id,
+          }),
+          DEVTOOLS_TIMEOUT,
+          'getInspectorState',
+        )
         rpc.onComponentByFileUpdated(query.event, {
           found: true,
           name: match.name,
