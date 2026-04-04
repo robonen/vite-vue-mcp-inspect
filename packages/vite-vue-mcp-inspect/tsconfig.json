@@ -1,5 +1,5 @@
 {
   "extends": "@robonen/tsconfig/tsconfig.json",
   "include": ["src/**/*.ts"],
-  "exclude": ["node_modules", "dist", "src/client", "src/__tests__"]
+  "exclude": ["node_modules", "dist", "src/client", "src/__tests__", "src/tools/**/overlay.ts", "src/tools/overlay-utils.ts", "src/tools/handlers.ts"]
 }

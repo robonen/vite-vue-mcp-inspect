@@ -1,4 +1,12 @@
-import type { AllRpcFunctions, VueMcpContext } from './types.js'
+import { createHooks } from 'hookable'
+import type { AllRpcFunctions, VueMcpContext } from './types.ts'
+
+export function createVueMcpContext(): VueMcpContext {
+  return {
+    hooks: createHooks(),
+    rpcServer: null,
+  }
+}
 
 /**
  * Creates the RPC handler object passed to `createRPCServer`.

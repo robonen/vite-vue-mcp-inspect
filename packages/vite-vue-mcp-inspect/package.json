@@ -26,7 +26,6 @@
   "sideEffects": false,
   "files": [
     "dist",
-    "src/client",
     "README.md"
   ],
   "exports": {

@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { createHooks } from 'hookable'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
-import { createMcpServer } from '../../server.js'
-import type { VueMcpContext } from '../../types.js'
+import { createMcpServer } from '../../core/server.ts'
+import type { VueMcpContext } from '../../core/types.ts'
 
 /**
  * Build a VueMcpContext whose rpcServer stubs immediately fire the hookable
