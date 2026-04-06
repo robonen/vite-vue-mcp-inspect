@@ -10,6 +10,7 @@ export default defineConfig([
     platform: 'node',
     deps: {
       onlyBundle: false,
+      alwaysBundle: ['@robonen/stdlib'],
       neverBundle: ['vite'],
     },
   },

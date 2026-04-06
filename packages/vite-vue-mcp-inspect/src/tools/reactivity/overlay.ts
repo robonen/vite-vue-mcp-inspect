@@ -1,14 +1,13 @@
 import { activeAppRecord } from '@vue/devtools-kit'
-import { stringify, withComponentNode } from '../overlay-utils.ts'
+import { withComponentNode } from '../overlay-utils.ts'
 
-export function createReactivityHandlers(getRpc: () => any) {
+export function createReactivityHandlers() {
   return {
     // ── Reactivity relationships ────────────────────────────────────────
-    async getReactivityRelationships(query: { event: string; componentName: string }) {
-      try {
-        const result = await withComponentNode(
-          query.componentName,
-          async (node) => {
+    async getReactivityRelationships(query: { componentName: string }) {
+      const result = await withComponentNode(
+        query.componentName,
+        async (node) => {
             const instance = activeAppRecord.value?.instanceMap?.get(node.id)
             if (!instance) {
               return { graphNodes: [], relationships: [] }
@@ -45,11 +44,7 @@ export function createReactivityHandlers(getRpc: () => any) {
           },
           (error) => ({ error }),
         )
-        getRpc().onReactivityRelationshipsUpdated(query.event, stringify(result))
-      }
-      catch (err) {
-        getRpc().onReactivityRelationshipsUpdated(query.event, { error: String(err) })
-      }
+      return result
     },
   }
 }

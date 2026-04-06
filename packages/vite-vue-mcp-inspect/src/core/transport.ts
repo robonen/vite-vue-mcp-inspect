@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { randomUUID } from 'node:crypto'
+import { noop } from '@robonen/stdlib'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import type { ViteDevServer } from 'vite'
@@ -43,6 +44,19 @@ function sendJsonError(res: ServerResponse, status: number, message: string): vo
   res.statusCode = status
   res.setHeader('Content-Type', 'application/json')
   res.end(JSON.stringify({ error: message }))
+}
+
+function getSession(
+  sessions: Map<string, SessionEntry>,
+  sessionId: string,
+  res: ServerResponse,
+): SessionEntry | null {
+  const entry = sessions.get(sessionId)
+  if (!entry) {
+    sendJsonError(res, 404, `Session "${sessionId}" not found`)
+    return null
+  }
+  return entry
 }
 
 /**
@@ -90,7 +104,7 @@ export async function setupTransports(
             if (transport.sessionId) sessions.delete(transport.sessionId)
             if (!closing) {
               closing = true
-              server.close().catch(() => {})
+              server.close().catch(noop)
             }
           }
           await server.connect(transport)
@@ -99,11 +113,8 @@ export async function setupTransports(
         }
 
         // Existing session
-        const entry = sessions.get(sessionId)
-        if (!entry) {
-          sendJsonError(sRes, 404, `Session "${sessionId}" not found`)
-          return
-        }
+        const entry = getSession(sessions, sessionId, sRes)
+        if (!entry) return
         await entry.transport.handleRequest(req, sRes, body)
         return
       }
@@ -113,11 +124,8 @@ export async function setupTransports(
           sendJsonError(sRes, 400, 'Missing mcp-session-id header')
           return
         }
-        const entry = sessions.get(sessionId)
-        if (!entry) {
-          sendJsonError(sRes, 404, `Session "${sessionId}" not found`)
-          return
-        }
+        const entry = getSession(sessions, sessionId, sRes)
+        if (!entry) return
         await entry.transport.handleRequest(req, sRes)
         return
       }
@@ -125,7 +133,7 @@ export async function setupTransports(
       sendJsonError(sRes, 405, 'Method Not Allowed')
     }
     catch (err) {
-      console.error('[vue-mcp] Streamable HTTP error:', err)
+      console.error('[vite-vue-mcp-inspect] Streamable HTTP error:', err)
       if (!sRes.headersSent) {
         sendJsonError(sRes, 500, 'Internal server error')
       }

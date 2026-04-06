@@ -1,48 +1,17 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import type { Hookable } from 'hookable'
 import type { VueMcpContext, VueMcpOptions } from './types.ts'
-import type { ToolRegistrationDeps, WithToolFn } from '../tools/types.ts'
+import type { BrowserClient, ToolRegistrationDeps, WithToolFn } from '../tools/types.ts'
 import { registerAppTools, registerComponentTools, registerPiniaTools, registerReactivityTools, registerRouterTools } from '../tools/register.ts'
 
-function withBrowserTimeout<T>(
-  hooks: Hookable<Record<string, any>>,
-  eventName: string,
-  trigger: () => void,
-  timeoutMs: number,
-  toolName: string,
-): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    let settled = false
-
-    const timer = setTimeout(() => {
-      if (!settled) {
-        settled = true
-        reject(new Error(
-          `Tool "${toolName}" timed out after ${timeoutMs}ms.\n`
-          + `Make sure the Vue app is open in a browser tab and @vue/devtools is loaded.`,
-        ))
-      }
-    }, timeoutMs)
-
-    hooks.hookOnce(eventName, (data: T) => {
-      if (!settled) {
-        settled = true
-        clearTimeout(timer)
-        resolve(data)
-      }
-    })
-
-    try {
-      trigger()
-    }
-    catch (err) {
-      if (!settled) {
-        settled = true
-        clearTimeout(timer)
-        reject(err)
-      }
-    }
-  })
+function getBrowserClient(ctx: VueMcpContext): BrowserClient {
+  if (!ctx.rpc) {
+    throw new Error(
+      'No browser connected. Make sure the Vue app is open in a browser tab.',
+    )
+  }
+  // birpc already provides a Proxy that maps property access to remote
+  // calls, so we can cast directly — no wrapper needed.
+  return ctx.rpc as unknown as BrowserClient
 }
 
 export function createMcpServer(
@@ -51,30 +20,30 @@ export function createMcpServer(
   browserTimeout: number,
 ): McpServer {
   const server = new McpServer({
-    name: 'vue-mcp',
+    name: 'vite-vue-mcp-inspect',
     version: '1.0.0',
     ...options.mcpServerInfo,
   })
 
-  let eventId = 0
-
-  /** Wrap a browser-dependent tool: generates event ID, fires RPC, races timeout. */
   const withTool: WithToolFn = <T>(
     toolName: string,
-    trigger: (event: string) => void,
+    call: (client: BrowserClient) => Promise<T>,
     timeout?: number,
   ): Promise<T> => {
-    const event = String(++eventId)
-    return withBrowserTimeout<T>(
-      ctx.hooks,
-      event,
-      () => trigger(event),
-      timeout ?? browserTimeout,
-      toolName,
-    )
+    const client = getBrowserClient(ctx)
+    const timeoutMs = timeout ?? browserTimeout
+    return Promise.race([
+      call(client),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error(
+          `Tool "${toolName}" timed out after ${timeoutMs}ms.\n`
+          + `Make sure the Vue app is open in a browser tab and @vue/devtools is loaded.`,
+        )), timeoutMs),
+      ),
+    ])
   }
 
-  const deps: ToolRegistrationDeps = { server, ctx, withTool, browserTimeout }
+  const deps: ToolRegistrationDeps = { server, withTool, browserTimeout }
 
   registerComponentTools(deps)
   registerPiniaTools(deps)

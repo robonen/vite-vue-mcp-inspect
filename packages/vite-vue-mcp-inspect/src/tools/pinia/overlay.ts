@@ -1,50 +1,48 @@
 import {
   devtools,
-  devtoolsState,
   getInspector,
-  toggleHighPerfMode,
 } from '@vue/devtools-kit'
 import {
   DEVTOOLS_TIMEOUT,
   PINIA_INSPECTOR_ID,
   stringify,
+  withHighPerfDisabled,
   withTimeout,
 } from '../overlay-utils.ts'
 
-export function createPiniaHandlers(getRpc: () => any) {
+/** Run fn with a Pinia inspector's selectedNodeId temporarily set to storeName. */
+async function withPiniaStore<T>(storeName: string, fn: () => Promise<T>): Promise<T> {
+  const inspector = getInspector(PINIA_INSPECTOR_ID)
+  const prevNodeId = inspector?.selectedNodeId
+  try {
+    if (inspector) inspector.selectedNodeId = storeName
+    return await fn()
+  }
+  finally {
+    if (inspector && prevNodeId !== undefined) inspector.selectedNodeId = prevNodeId
+  }
+}
+
+export function createPiniaHandlers() {
   return {
     // ── Pinia tree ──────────────────────────────────────────────────────
-    async getPiniaTree(query: { event: string }) {
-      const wasHighPerf = devtoolsState.highPerfModeEnabled
-      if (wasHighPerf) toggleHighPerfMode(false)
-      try {
-        const tree = await withTimeout(
+    async getPiniaTree() {
+      return withHighPerfDisabled(() =>
+        withTimeout(
           devtools.api.getInspectorTree({
             inspectorId: PINIA_INSPECTOR_ID,
             filter: '',
           }),
           DEVTOOLS_TIMEOUT,
           'getInspectorTree(pinia)',
-        )
-        getRpc().onPiniaTreeUpdated(query.event, tree)
-      }
-      catch (err) {
-        getRpc().onPiniaTreeUpdated(query.event, { error: String(err) })
-      }
-      finally {
-        if (wasHighPerf) toggleHighPerfMode(true)
-      }
+        ),
+      )
     },
 
     // ── Pinia state ─────────────────────────────────────────────────────
-    async getPiniaState(query: { event: string; storeName: string }) {
-      const wasHighPerf = devtoolsState.highPerfModeEnabled
-      if (wasHighPerf) toggleHighPerfMode(false)
-      try {
-        const inspector = getInspector(PINIA_INSPECTOR_ID)
-        const prevNodeId = inspector?.selectedNodeId
-        try {
-          if (inspector) inspector.selectedNodeId = query.storeName
+    async getPiniaState(query: { storeName: string }) {
+      return withHighPerfDisabled(() =>
+        withPiniaStore(query.storeName, async () => {
           const state = await withTimeout(
             (devtools as any).ctx.api.getInspectorState({
               inspectorId: PINIA_INSPECTOR_ID,
@@ -53,18 +51,9 @@ export function createPiniaHandlers(getRpc: () => any) {
             DEVTOOLS_TIMEOUT,
             'getInspectorState(pinia)',
           )
-          getRpc().onPiniaInfoUpdated(query.event, stringify(state as object))
-        }
-        finally {
-          if (inspector && prevNodeId !== undefined) inspector.selectedNodeId = prevNodeId
-        }
-      }
-      catch (err) {
-        getRpc().onPiniaInfoUpdated(query.event, { error: String(err) })
-      }
-      finally {
-        if (wasHighPerf) toggleHighPerfMode(true)
-      }
+          return JSON.parse(stringify(state as object) as string)
+        }),
+      )
     },
 
     // ── Edit Pinia state ────────────────────────────────────────────────
@@ -73,19 +62,13 @@ export function createPiniaHandlers(getRpc: () => any) {
       path: string[]
       value: string
       valueType: string
-      event: string
     }) {
-      const wasHighPerf = devtoolsState.highPerfModeEnabled
-      if (wasHighPerf) toggleHighPerfMode(false)
-      try {
+      return withHighPerfDisabled(async () => {
         const inspector = getInspector(PINIA_INSPECTOR_ID)
         if (!inspector) {
-          getRpc().onPiniaStateEditDone(query.event, { success: false, error: 'Pinia inspector not found' })
-          return
+          return { success: false as const, error: 'Pinia inspector not found' }
         }
-        const prevNodeId = inspector.selectedNodeId
-        try {
-          inspector.selectedNodeId = query.storeName
+        return withPiniaStore(query.storeName, async () => {
           await withTimeout(
             (devtools as any).ctx.api.editInspectorState({
               inspectorId: PINIA_INSPECTOR_ID,
@@ -102,18 +85,9 @@ export function createPiniaHandlers(getRpc: () => any) {
             DEVTOOLS_TIMEOUT,
             'editInspectorState(pinia)',
           )
-          getRpc().onPiniaStateEditDone(query.event, { success: true })
-        }
-        finally {
-          if (prevNodeId !== undefined) inspector.selectedNodeId = prevNodeId
-        }
-      }
-      catch (err) {
-        getRpc().onPiniaStateEditDone(query.event, { success: false, error: String(err) })
-      }
-      finally {
-        if (wasHighPerf) toggleHighPerfMode(true)
-      }
+          return { success: true as const }
+        })
+      })
     },
   }
 }

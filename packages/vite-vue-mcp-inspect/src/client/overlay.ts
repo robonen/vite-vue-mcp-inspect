@@ -1,28 +1,33 @@
 import { devtools } from '@vue/devtools-kit'
-import { createRPCClient } from 'vite-dev-rpc'
-import { createHotContext } from 'vite-hot-client'
-import { createAppHandlers, createComponentHandlers, createPiniaHandlers, createReactivityHandlers, createRouterHandlers } from '../tools/handlers.ts'
-
-const base = (import.meta as any).env?.BASE_URL ?? '/'
-const hot = createHotContext('', base)
+import { createBirpc } from 'birpc'
+import { createComponentHandlers, createPiniaHandlers, createRouterHandlers, createAppHandlers, createReactivityHandlers } from '../tools/handlers.ts'
 
 devtools.init()
 
-console.log('[vue-mcp] overlay mounted')
+console.log('[vite-vue-mcp-inspect] overlay mounted')
 
-// ── RPC client ───────────────────────────────────────────────────────────
+// ── RPC client over Vite HMR WebSocket ───────────────────────────────────
 
-const getRpc = () => _rpc
+const hot = (import.meta as any).hot
 
-const _rpc = createRPCClient<any, any>(
-  'vite-vue-mcp-inspect',
-  hot,
-  {
-    ...createComponentHandlers(getRpc),
-    ...createPiniaHandlers(getRpc),
-    ...createRouterHandlers(getRpc),
-    ...createAppHandlers(getRpc),
-    ...createReactivityHandlers(getRpc),
-  },
-  { timeout: -1 },
-)
+if (hot) {
+  const handlers = {
+    ...createComponentHandlers(),
+    ...createPiniaHandlers(),
+    ...createRouterHandlers(),
+    ...createAppHandlers(),
+    ...createReactivityHandlers(),
+  }
+
+  createBirpc(handlers, {
+    post: (data: any) => hot.send('vite-vue-mcp-inspect:rpc', data),
+    on: (fn: any) => hot.on('vite-vue-mcp-inspect:rpc', (data: any) => fn(data)),
+    serialize: (v: any) => v,
+    deserialize: (v: any) => v,
+  })
+
+  console.log('[vite-vue-mcp-inspect] RPC connected via Vite HMR')
+}
+else {
+  console.warn('[vite-vue-mcp-inspect] import.meta.hot not available — RPC disabled')
+}

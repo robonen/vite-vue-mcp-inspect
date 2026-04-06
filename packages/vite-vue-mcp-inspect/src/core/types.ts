@@ -1,9 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import type { Hookable } from 'hookable'
-import type { BirpcGroupReturn } from 'birpc'
+import type { BirpcReturn } from 'birpc'
+import type { MaybePromise } from '@robonen/stdlib'
 import type { ViteDevServer } from 'vite'
-
-type Awaitable<T> = T | Promise<T>
 
 // ── IDE config options ─────────────────────────────────────────────────────
 
@@ -15,7 +13,7 @@ export interface IdeMcpConfig {
   enabled?: boolean
   /**
    * The MCP server name key in the IDE config.
-   * @default 'vue-mcp'
+   * @default 'vite-vue-mcp-inspect'
    */
   serverName?: string
 }
@@ -27,7 +25,7 @@ export interface ClaudeDesktopConfig {
    * Defaults to the platform-specific location.
    */
   configPath?: string
-  /** @default 'vue-mcp' */
+  /** @default 'vite-vue-mcp-inspect' */
   serverName?: string
 }
 
@@ -49,13 +47,13 @@ export interface VueMcpOptions {
   /**
    * Custom MCP server factory. When provided, built-in tools are skipped.
    */
-  mcpServer?: (viteServer: ViteDevServer, ctx: VueMcpContext) => Awaitable<McpServer>
+  mcpServer?: (viteServer: ViteDevServer, ctx: VueMcpContext) => MaybePromise<McpServer>
 
   /**
    * Hook called after the MCP server is created. You can add tools or
    * return a replacement McpServer instance.
    */
-  mcpServerSetup?: (server: McpServer, viteServer: ViteDevServer) => Awaitable<void | McpServer>
+  mcpServerSetup?: (server: McpServer, viteServer: ViteDevServer) => MaybePromise<void | McpServer>
 
   /**
    * Override the MCP server name/version info.
@@ -108,63 +106,41 @@ export interface VueMcpOptions {
   appendTo?: string | RegExp
 }
 
-// ── RPC shapes ─────────────────────────────────────────────────────────────
-// Server → Browser: triggers actions in the browser
-export interface ServerRpcFunctions {
-  getInspectorTree(query: { event: string }): void
-  getDetailedComponentTree(query: { event: string }): void
-  getInspectorState(query: { event: string; componentName: string }): void
+// ── Browser RPC functions ──────────────────────────────────────────────────
+// The browser exposes these functions; the server calls them via birpc.
+// Each returns its result directly (birpc handles request-response).
+
+export interface BrowserRpcFunctions {
+  getInspectorTree(): unknown
+  getDetailedComponentTree(): unknown
+  getInspectorState(query: { componentName: string }): unknown
   editComponentState(query: {
     componentName: string
     path: string[]
     value: string
     valueType: string
-    event: string
-  }): void
-  highlightComponent(query: { componentName: string; event: string }): void
-  scrollToComponent(query: { componentName: string; event: string }): void
-  getRouterInfo(query: { event: string }): void
-  getPiniaTree(query: { event: string }): void
-  getPiniaState(query: { event: string; storeName: string }): void
+  }): { success: boolean; error?: string }
+  highlightComponent(query: { componentName: string }): { success: boolean; error?: string }
+  scrollToComponent(query: { componentName: string }): { success: boolean; error?: string }
+  getRouterInfo(): unknown
+  getPiniaTree(): unknown
+  getPiniaState(query: { storeName: string }): unknown
   editPiniaState(query: {
     storeName: string
     path: string[]
     value: string
     valueType: string
-    event: string
-  }): void
-  navigateToRoute(query: { path: string; event: string }): void
-  getAppInfo(query: { event: string }): void
-  reloadApp(query: { event: string }): void
-  getComponentByFile(query: { filePath: string; event: string }): void
-  getReactivityRelationships(query: { event: string; componentName: string }): void
+  }): { success: boolean; error?: string }
+  navigateToRoute(query: { path: string }): { success: boolean; error?: string }
+  getAppInfo(): unknown
+  reloadApp(): void
+  getComponentByFile(query: { filePath: string }): unknown
+  getReactivityRelationships(query: { componentName: string }): unknown
 }
-
-// Browser → Server: callbacks that resolve pending MCP tool promises
-export interface ClientRpcFunctions {
-  onInspectorTreeUpdated(event: string, data: unknown): void
-  onDetailedComponentTreeUpdated(event: string, data: unknown): void
-  onInspectorStateUpdated(event: string, data: unknown): void
-  onEditComponentStateDone(event: string, result: { success: boolean; error?: string }): void
-  onHighlightComponentDone(event: string, result: { success: boolean; error?: string }): void
-  onScrollToComponentDone(event: string, result: { success: boolean; error?: string }): void
-  onRouterInfoUpdated(event: string, data: unknown): void
-  onPiniaTreeUpdated(event: string, data: unknown): void
-  onPiniaInfoUpdated(event: string, data: unknown): void
-  onPiniaStateEditDone(event: string, result: { success: boolean; error?: string }): void
-  onNavigateToRouteDone(event: string, result: { success: boolean; error?: string }): void
-  onAppInfoUpdated(event: string, data: unknown): void
-  onReloadAppDone(event: string): void
-  onComponentByFileUpdated(event: string, data: unknown): void
-  onReactivityRelationshipsUpdated(event: string, data: unknown): void
-}
-
-export type AllRpcFunctions = ServerRpcFunctions & ClientRpcFunctions
 
 // ── Context ────────────────────────────────────────────────────────────────
 
 export interface VueMcpContext {
-  hooks: Hookable<Record<string, any>>
-  /** Populated in configureServer. Null before plugin initialises. */
-  rpcServer: BirpcGroupReturn<ServerRpcFunctions> | null
+  /** birpc instance using Vite's HMR WebSocket. Populated in configureServer. */
+  rpc: BirpcReturn<BrowserRpcFunctions, Record<string, never>> | null
 }

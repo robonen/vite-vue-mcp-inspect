@@ -3,6 +3,10 @@
     "vue-mcp": {
       "type": "http",
       "url": "http://localhost:5173/__mcp/mcp"
+    },
+    "vite-vue-mcp-inspect": {
+      "type": "http",
+      "url": "http://localhost:5173/__mcp/mcp"
     }
   }
 }

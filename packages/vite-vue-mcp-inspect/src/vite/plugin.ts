@@ -1,53 +1,44 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { noop } from '@robonen/stdlib'
 import ansis from 'ansis'
-import { createRPCServer } from 'vite-dev-rpc'
 import { searchForWorkspaceRoot } from 'vite'
 import type { Plugin, ResolvedConfig, ViteDevServer } from 'vite'
-import { createVueMcpContext } from '../core/rpc.ts'
-import { createServerRpc } from '../core/rpc.ts'
+import { createVueMcpContext, createHotRpc } from '../core/rpc.ts'
 import { createMcpServer } from '../core/server.ts'
 import { setupTransports } from '../core/transport.ts'
-import type { AllRpcFunctions, ClaudeDesktopConfig, IdeMcpConfig, ServerRpcFunctions, VueMcpOptions } from '../core/types.ts'
+import type { AddressInfo } from 'node:net'
+import type { ClaudeDesktopConfig, IdeMcpConfig, VueMcpOptions } from '../core/types.ts'
 import { updateIdeConfigs } from './ide-config.ts'
 import type { IdeConfigOptions } from './ide-config.ts'
 
-const VIRTUAL_MODULE_ID = 'virtual:vue-mcp-overlay'
+const VIRTUAL_MODULE_ID = 'virtual:vite-vue-mcp-inspect-overlay'
 const RESOLVED_VIRTUAL_ID = `\0${VIRTUAL_MODULE_ID}`
 
-const _dirname = fileURLToPath(new URL('.', import.meta.url))
-
-function getOverlayPath(): string {
-  return path.resolve(_dirname, 'overlay.js')
-}
+const OVERLAY_PATH = path.resolve(fileURLToPath(new URL('.', import.meta.url)), 'overlay.js')
 
 function resolveIdeMcpConfig(
   opt: boolean | IdeMcpConfig | undefined,
   defaultEnabled: boolean,
 ): false | { serverName: string } {
-  if (opt === false) return false
-  if (opt === true || opt === undefined) {
-    return defaultEnabled ? { serverName: 'vue-mcp' } : false
-  }
+  if (opt === false || (opt === undefined && !defaultEnabled)) return false
+  if (opt === true || opt === undefined) return { serverName: 'vite-vue-mcp-inspect' }
   if (opt.enabled === false) return false
-  return { serverName: opt.serverName ?? 'vue-mcp' }
+  return { serverName: opt.serverName ?? 'vite-vue-mcp-inspect' }
 }
 
 function resolveClaudeDesktopConfig(
   opt: boolean | ClaudeDesktopConfig | undefined,
 ): false | { serverName: string; configPath: string } {
   if (!opt) return false
-  if (opt === true) return { serverName: 'vue-mcp', configPath: '' }
+  if (opt === true) return { serverName: 'vite-vue-mcp-inspect', configPath: '' }
   if (opt.enabled === false) return false
-  return {
-    serverName: opt.serverName ?? 'vue-mcp',
-    configPath: opt.configPath ?? '',
-  }
+  return { serverName: opt.serverName ?? 'vite-vue-mcp-inspect', configPath: opt.configPath ?? '' }
 }
 
-function getMcpProtocol(config: ResolvedConfig): 'http' | 'https' {
-  return config.server.https ? 'https' : 'http'
+function resolvePort(address: AddressInfo | string | null): number {
+  return typeof address === 'object' && address ? address.port : 5173
 }
 
 export function createVueMcpPlugin(options: VueMcpOptions = {}): Plugin {
@@ -60,6 +51,12 @@ export function createVueMcpPlugin(options: VueMcpOptions = {}): Plugin {
   } = options
 
   const ctx = createVueMcpContext()
+  const appendPattern = appendTo instanceof RegExp
+    ? appendTo
+    : appendTo
+      ? new RegExp(`${appendTo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`)
+      : null
+
   let config: ResolvedConfig
   let overlaySource: string | null = null
 
@@ -74,15 +71,13 @@ export function createVueMcpPlugin(options: VueMcpOptions = {}): Plugin {
     resolveId(id, importer) {
       if (id === VIRTUAL_MODULE_ID) return RESOLVED_VIRTUAL_ID
       if (importer === RESOLVED_VIRTUAL_ID) {
-        return this.resolve(id, getOverlayPath(), { skipSelf: true })
+        return this.resolve(id, OVERLAY_PATH, { skipSelf: true })
       }
     },
 
     load(id) {
       if (id === RESOLVED_VIRTUAL_ID) {
-        if (!overlaySource) {
-          overlaySource = readFileSync(getOverlayPath(), 'utf-8')
-        }
+        overlaySource ??= readFileSync(OVERLAY_PATH, 'utf-8')
         return overlaySource
       }
     },
@@ -91,32 +86,21 @@ export function createVueMcpPlugin(options: VueMcpOptions = {}): Plugin {
       if (appendTo) return []
       return [{
         tag: 'script',
-        attrs: { type: 'module', src: '/@id/__x00__virtual:vue-mcp-overlay' },
+        attrs: { type: 'module', src: '/@id/__x00__virtual:vite-vue-mcp-inspect-overlay' },
         injectTo: 'head-prepend' as const,
       }]
     },
 
     transform(code, id) {
-      if (!appendTo) return
-      const pattern = appendTo instanceof RegExp
-        ? appendTo
-        : new RegExp(`${appendTo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`)
-      if (pattern.test(id)) {
-        return {
-          code: `${code}\nimport "${VIRTUAL_MODULE_ID}"`,
-          map: null,
-        }
+      if (appendPattern?.test(id)) {
+        return { code: `${code}\nimport "${VIRTUAL_MODULE_ID}"`, map: null }
       }
     },
 
     async configureServer(vite: ViteDevServer) {
-      const rpcHandlers = createServerRpc(ctx)
-      ctx.rpcServer = createRPCServer<ServerRpcFunctions, AllRpcFunctions>(
-        'vite-vue-mcp-inspect',
-        vite.ws,
-        rpcHandlers,
-        { timeout: -1 },
-      ) as any
+      const resolvedHost = _host ?? 'localhost'
+
+      ctx.rpc = createHotRpc(vite.hot)
 
       const createServer = async () => {
         let mcpServer = options.mcpServer
@@ -131,51 +115,38 @@ export function createVueMcpPlugin(options: VueMcpOptions = {}): Plugin {
       }
 
       const cleanup = await setupTransports(mcpPath, createServer, vite)
+      vite.httpServer?.on('close', () => { cleanup().catch(noop) })
 
-      vite.httpServer?.on('close', () => {
-        cleanup().catch(() => {})
-      })
-
-      const resolvedHost = _host ?? 'localhost'
-      const address = vite.httpServer?.address()
-      const port = typeof address === 'object' && address ? address.port : 5173
-      const protocol = getMcpProtocol(config)
-      const mcpUrl = `${protocol}://${resolvedHost}:${port}${mcpPath}/mcp`
+      const protocol = config.server.https ? 'https' : 'http'
       const root = searchForWorkspaceRoot(config.root)
+      const buildMcpUrl = (port: number) => `${protocol}://${resolvedHost}:${port}${mcpPath}/mcp`
 
       const ideOpts: IdeConfigOptions = {
         root,
-        mcpUrl,
+        mcpUrl: buildMcpUrl(resolvePort(vite.httpServer?.address() ?? null)),
         cursor: resolveIdeMcpConfig(options.updateCursorMcpJson, true),
         windsurf: resolveIdeMcpConfig(options.updateWindsurfMcpJson, true),
         vscode: resolveIdeMcpConfig(options.updateVscodeMcpJson, true),
         claudeDesktop: resolveClaudeDesktopConfig(options.updateClaudeDesktopConfig),
       }
 
+      const applyIdeConfigs = () => updateIdeConfigs(ideOpts).catch((err) => {
+        console.warn(`[vite-vue-mcp-inspect] IDE config update failed: ${err}`)
+      })
+
       if (vite.httpServer) {
         vite.httpServer.once('listening', () => {
-          const actualAddress = vite.httpServer?.address()
-          const actualPort = typeof actualAddress === 'object' && actualAddress ? actualAddress.port : port
-          const actualMcpUrl = `${protocol}://${resolvedHost}:${actualPort}${mcpPath}/mcp`
-
+          ideOpts.mcpUrl = buildMcpUrl(resolvePort(vite.httpServer!.address()))
           if (printUrl) {
             setTimeout(() => {
-              console.log(
-                `  ${ansis.green('➜')}  ${ansis.bold('MCP')}: ${ansis.cyan(actualMcpUrl)}`,
-              )
+              console.log(`  ${ansis.green('➜')}  ${ansis.bold('MCP')}: ${ansis.cyan(ideOpts.mcpUrl)}`)
             }, 0)
           }
-
-          ideOpts.mcpUrl = actualMcpUrl
-          updateIdeConfigs(ideOpts).catch((err) => {
-            console.warn(`[vue-mcp] IDE config update failed: ${err}`)
-          })
+          applyIdeConfigs()
         })
       }
       else {
-        updateIdeConfigs(ideOpts).catch((err) => {
-          console.warn(`[vue-mcp] IDE config update failed: ${err}`)
-        })
+        applyIdeConfigs()
       }
     },
   }

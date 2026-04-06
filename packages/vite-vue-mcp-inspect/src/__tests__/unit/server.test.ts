@@ -1,42 +1,71 @@
 import { describe, expect, it } from 'vitest'
-import { createHooks } from 'hookable'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import { createMcpServer } from '../../core/server.ts'
 import type { VueMcpContext } from '../../core/types.ts'
 
 /**
- * Build a VueMcpContext whose rpcServer stubs immediately fire the hookable
- * event with the supplied data, simulating the browser round-trip.
+ * Build a VueMcpContext whose rpc methods return
+ * the supplied data directly, simulating a birpc browser client.
  */
 function makeCtx(responses: Partial<Record<string, unknown>> = {}): VueMcpContext {
-  const ctx: VueMcpContext = { hooks: createHooks(), rpcServer: null as any }
+  const reply = (key: string, fallback: unknown = {}) =>
+    () => Promise.resolve(responses[key] ?? fallback)
 
-  const respond = (key: string) =>
-    ({ event }: { event: string }) => ctx.hooks.callHook(event, responses[key] ?? {})
+  const replyWithArg = (key: string, fallback: unknown = {}) =>
+    (_query: any) => Promise.resolve(responses[key] ?? fallback)
 
-  const respondResult = (key: string, fallback: unknown = { success: true }) =>
-    ({ event }: { event: string }) => ctx.hooks.callHook(event, responses[key] ?? fallback)
+  const replyResult = (key: string, fallback: unknown = { success: true }) =>
+    (_query?: any) => Promise.resolve(responses[key] ?? fallback)
 
-  ctx.rpcServer = {
-    getInspectorTree: respond('tree'),
-    getDetailedComponentTree: respond('detailedTree'),
-    getInspectorState: respond('state'),
-    editComponentState: respondResult('edit'),
-    highlightComponent: respondResult('highlight'),
-    scrollToComponent: respondResult('scroll'),
-    getRouterInfo: respond('router'),
-    getPiniaTree: respond('piniaTree'),
-    getPiniaState: respond('piniaState'),
-    editPiniaState: respondResult('piniaEdit'),
-    navigateToRoute: respondResult('navigate'),
-    getAppInfo: respond('appInfo'),
-    reloadApp: ({ event }: { event: string }) => ctx.hooks.callHook(event, null),
-    getComponentByFile: respond('componentByFile'),
-    getReactivityRelationships: respond('reactivityRelationships'),
-  } as any
+  const browserClient = {
+    getInspectorTree: reply('tree'),
+    getDetailedComponentTree: reply('detailedTree'),
+    getInspectorState: replyWithArg('state'),
+    editComponentState: replyResult('edit'),
+    highlightComponent: replyResult('highlight'),
+    scrollToComponent: replyResult('scroll'),
+    getRouterInfo: reply('router'),
+    getPiniaTree: reply('piniaTree'),
+    getPiniaState: replyWithArg('piniaState'),
+    editPiniaState: replyResult('piniaEdit'),
+    navigateToRoute: replyResult('navigate'),
+    getAppInfo: reply('appInfo'),
+    reloadApp: () => Promise.resolve(),
+    getComponentByFile: replyWithArg('componentByFile'),
+    getReactivityRelationships: replyWithArg('reactivityRelationships'),
+  }
 
-  return ctx
+  return {
+    rpc: browserClient as any,
+  }
+}
+
+/**
+ * Build a VueMcpContext whose client methods never resolve → triggers timeout.
+ */
+function makeHangingCtx(): VueMcpContext {
+  const neverResolve = () => new Promise<never>(() => {})
+  const browserClient = {
+    getInspectorTree: neverResolve,
+    getDetailedComponentTree: neverResolve,
+    getInspectorState: neverResolve,
+    editComponentState: neverResolve,
+    highlightComponent: neverResolve,
+    scrollToComponent: neverResolve,
+    getRouterInfo: neverResolve,
+    getPiniaTree: neverResolve,
+    getPiniaState: neverResolve,
+    editPiniaState: neverResolve,
+    navigateToRoute: neverResolve,
+    getAppInfo: neverResolve,
+    reloadApp: neverResolve,
+    getComponentByFile: neverResolve,
+    getReactivityRelationships: neverResolve,
+  }
+  return {
+    rpc: browserClient as any,
+  }
 }
 
 /** Connect a real MCP client ↔ server via InMemoryTransport. */
@@ -84,25 +113,7 @@ describe('get-component-tree', () => {
   })
 
   it('returns isError on timeout', async () => {
-    const ctx: VueMcpContext = { hooks: createHooks(), rpcServer: null as any }
-    // rpcServer methods do nothing → hook never fires → timeout
-    ctx.rpcServer = {
-      getInspectorTree: () => {},
-      getDetailedComponentTree: () => {},
-      getInspectorState: () => {},
-      editComponentState: () => {},
-      highlightComponent: () => {},
-      scrollToComponent: () => {},
-      getRouterInfo: () => {},
-      getPiniaTree: () => {},
-      getPiniaState: () => {},
-      editPiniaState: () => {},
-      navigateToRoute: () => {},
-      getAppInfo: () => {},
-      reloadApp: () => {},
-      getComponentByFile: () => {},
-      getReactivityRelationships: () => {},
-    } as any
+    const ctx = makeHangingCtx()
 
     const server = createMcpServer({}, ctx, 50)
     const [ct, st] = InMemoryTransport.createLinkedPair()
@@ -317,26 +328,9 @@ describe('reload-app', () => {
   })
 
   it('returns success (not error) on timeout — page reloaded before ack', async () => {
-    // rpcServer.reloadApp does nothing → hook never fires → timeout
+    // Client's reloadApp never resolves → timeout
     // But reload-app treats timeout as success (page reloaded before ack)
-    const ctx: VueMcpContext = { hooks: createHooks(), rpcServer: null as any }
-    ctx.rpcServer = {
-      getInspectorTree: () => {},
-      getDetailedComponentTree: () => {},
-      getInspectorState: () => {},
-      editComponentState: () => {},
-      highlightComponent: () => {},
-      scrollToComponent: () => {},
-      getRouterInfo: () => {},
-      getPiniaTree: () => {},
-      getPiniaState: () => {},
-      editPiniaState: () => {},
-      navigateToRoute: () => {},
-      getAppInfo: () => {},
-      reloadApp: () => {},
-      getComponentByFile: () => {},
-      getReactivityRelationships: () => {},
-    } as any
+    const ctx = makeHangingCtx()
 
     const server = createMcpServer({}, ctx, 50)
     const [ct, st] = InMemoryTransport.createLinkedPair()
