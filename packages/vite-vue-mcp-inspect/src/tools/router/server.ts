@@ -1,6 +1,6 @@
 import { z } from 'zod'
-import type { ToolRegistrationDeps } from '../types.ts'
-import { definePassthroughTool, defineSuccessCheckTool } from '../server-utils.ts'
+import type { ToolRegistrationDeps } from '../types'
+import { definePassthroughTool, defineSuccessCheckTool } from '../server-utils'
 
 export function registerRouterTools(deps: ToolRegistrationDeps): void {
   definePassthroughTool(deps, 'get-router-info', {

@@ -136,6 +136,9 @@ export interface BrowserRpcFunctions {
   reloadApp(): void
   getComponentByFile(query: { filePath: string }): unknown
   getReactivityRelationships(query: { componentName: string }): unknown
+  getProvideInjectTree(): unknown
+  getI18nInfo(): unknown
+  setI18nLocale(query: { locale: string }): { success: boolean; error?: string }
 }
 
 // ── Context ────────────────────────────────────────────────────────────────

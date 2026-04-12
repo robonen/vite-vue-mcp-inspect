@@ -9,7 +9,7 @@ import {
   stringify,
   withComponentNode,
   withTimeout,
-} from '../overlay-utils.ts'
+} from '../overlay-utils'
 
 export function createComponentHandlers() {
   return {

@@ -8,7 +8,7 @@ import {
   stringify,
   withHighPerfDisabled,
   withTimeout,
-} from '../overlay-utils.ts'
+} from '../overlay-utils'
 
 /** Run fn with a Pinia inspector's selectedNodeId temporarily set to storeName. */
 async function withPiniaStore<T>(storeName: string, fn: () => Promise<T>): Promise<T> {

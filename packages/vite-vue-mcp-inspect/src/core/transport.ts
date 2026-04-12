@@ -4,6 +4,7 @@ import { noop } from '@robonen/stdlib'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import type { ViteDevServer } from 'vite'
+import { PLUGIN_NAME } from '../constants'
 
 interface SessionEntry {
   server: McpServer
@@ -15,29 +16,18 @@ const MAX_BODY_SIZE = 1024 * 1024
 
 /** Parse the raw body of an IncomingMessage as JSON. */
 async function readJsonBody(req: IncomingMessage): Promise<unknown> {
-  return new Promise((resolve, reject) => {
-    const chunks: Buffer[] = []
-    let size = 0
-    req.on('data', (chunk: Buffer) => {
-      size += chunk.length
-      if (size > MAX_BODY_SIZE) {
-        req.destroy()
-        reject(new Error('Request body too large'))
-        return
-      }
-      chunks.push(chunk)
-    })
-    req.on('end', () => {
-      try {
-        const data = Buffer.concat(chunks, size).toString('utf8')
-        resolve(data ? JSON.parse(data) : undefined)
-      }
-      catch (err) {
-        reject(err)
-      }
-    })
-    req.on('error', reject)
-  })
+  let size = 0
+  const chunks: Buffer[] = []
+  for await (const chunk of req) {
+    size += (chunk as Buffer).length
+    if (size > MAX_BODY_SIZE) {
+      req.destroy()
+      throw new Error('Request body too large')
+    }
+    chunks.push(chunk as Buffer)
+  }
+  const raw = Buffer.concat(chunks).toString('utf8')
+  return raw ? JSON.parse(raw) : undefined
 }
 
 function sendJsonError(res: ServerResponse, status: number, message: string): void {
@@ -133,7 +123,7 @@ export async function setupTransports(
       sendJsonError(sRes, 405, 'Method Not Allowed')
     }
     catch (err) {
-      console.error('[vite-vue-mcp-inspect] Streamable HTTP error:', err)
+      console.error(`[${PLUGIN_NAME}] Streamable HTTP error:`, err)
       if (!sRes.headersSent) {
         sendJsonError(sRes, 500, 'Internal server error')
       }

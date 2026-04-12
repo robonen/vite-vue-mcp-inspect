@@ -31,7 +31,7 @@ export async function setup() {
   await page.waitForFunction(
     () => {
       const hook = (globalThis as any).__VUE_DEVTOOLS_GLOBAL_HOOK__
-      return hook?.enabled && hook?.apps && Object.keys(hook.apps).length > 0
+      return hook?.enabled && Array.isArray(hook.apps) && hook.apps.length > 0
     },
     { timeout: 15_000 },
   )

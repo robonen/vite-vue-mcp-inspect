@@ -1,5 +1,5 @@
 import { activeAppRecord } from '@vue/devtools-kit'
-import { withComponentNode } from '../overlay-utils.ts'
+import { withComponentNode } from '../overlay-utils'
 
 export function createReactivityHandlers() {
   return {
@@ -92,7 +92,7 @@ function processReactivitySubs(state: any): ReactivityDep[] {
     const type = getSubscriberType(sub)
     let fn: unknown = null
     let value: unknown = null
-    let key: unknown = null
+    const key: unknown = null
 
     if (type === 'render' || type === 'effect' || type === 'watch') {
       fn = sub.fn?.name || '(anonymous)'

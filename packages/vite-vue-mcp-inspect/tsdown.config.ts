@@ -2,7 +2,7 @@ import { defineConfig } from 'tsdown'
 
 export default defineConfig([
   {
-    entry: ['src/index.ts'],
+    entry: ['src/vite.ts'],
     format: ['esm'],
     dts: true,
     clean: true,
@@ -15,7 +15,7 @@ export default defineConfig([
     },
   },
   {
-    entry: { overlay: 'src/client/overlay.ts' },
+    entry: { client: 'src/client.ts' },
     format: ['esm'],
     dts: false,
     clean: false,

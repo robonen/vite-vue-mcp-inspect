@@ -1,5 +1,5 @@
-import type { ToolRegistrationDeps } from '../types.ts'
-import { definePassthroughTool, ok, err, errorMessage } from '../server-utils.ts'
+import type { ToolRegistrationDeps } from '../types'
+import { definePassthroughTool, ok, err, errorMessage } from '../server-utils'
 
 export function registerAppTools(deps: ToolRegistrationDeps): void {
   definePassthroughTool(deps, 'get-app-info', {

@@ -30,12 +30,12 @@
   ],
   "exports": {
     ".": {
-      "types": "./dist/index.d.mts",
-      "import": "./dist/index.mjs"
+      "types": "./dist/vite.d.mts",
+      "import": "./dist/vite.mjs"
     }
   },
-  "module": "./dist/index.mjs",
-  "types": "./dist/index.d.mts",
+  "module": "./dist/vite.mjs",
+  "types": "./dist/vite.d.mts",
   "scripts": {
     "test": "vitest run",
     "test:unit": "vitest run --project unit",

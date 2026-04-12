@@ -1,10 +1,10 @@
-import { unique } from '@robonen/stdlib'
 import {
   devtools,
   devtoolsState,
   stringify as _stringify,
   toggleHighPerfMode,
 } from '@vue/devtools-kit'
+import { PLUGIN_NAME } from '../constants'
 
 export { _stringify as stringify }
 
@@ -15,12 +15,16 @@ export const DEVTOOLS_TIMEOUT = 5000
 
 /** Race a promise against a timeout. Rejects if the promise doesn't settle in time. */
 export function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error(`[vite-vue-mcp-inspect] ${label} timed out after ${ms}ms`)), ms),
-    ),
-  ])
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error(`[${PLUGIN_NAME}] ${label} timed out after ${ms}ms`)),
+      ms,
+    )
+    promise.then(
+      (v) => { clearTimeout(timer); resolve(v) },
+      (e) => { clearTimeout(timer); reject(e) },
+    )
+  })
 }
 
 export function flattenChildren(node: any): any[] {
@@ -41,13 +45,19 @@ export function flattenChildren(node: any): any[] {
 }
 
 export function findNode(tree: any, name: string): { node: any; error?: never } | { node?: never; error: string } {
-  const all = flattenChildren(tree)
-  const node = all.find((n: any) => n.name === name)
-  if (!node) {
-    const available = unique(all.map((n: any) => n.name)).slice(0, 20).join(', ')
-    return { error: `Component "${name}" not found.\nAvailable: ${available}` }
+  if (!tree) return { error: `Component "${name}" not found.\nAvailable: none` }
+  const stack: any[] = [tree]
+  const names: string[] = []
+  while (stack.length > 0) {
+    const n = stack.pop()!
+    if (n.name === name) return { node: n }
+    names.push(n.name)
+    if (Array.isArray(n.children)) {
+      for (let i = n.children.length - 1; i >= 0; i--) stack.push(n.children[i])
+    }
   }
-  return { node }
+  const available = [...new Set(names)].slice(0, 20).join(', ')
+  return { error: `Component "${name}" not found.\nAvailable: ${available}` }
 }
 
 let highlightTimer: ReturnType<typeof setTimeout> | null = null

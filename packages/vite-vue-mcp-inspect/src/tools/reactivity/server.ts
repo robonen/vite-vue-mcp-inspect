@@ -1,6 +1,6 @@
 import { z } from 'zod'
-import type { ToolRegistrationDeps } from '../types.ts'
-import { defineErrorCheckTool } from '../server-utils.ts'
+import type { ToolRegistrationDeps } from '../types'
+import { defineErrorCheckTool } from '../server-utils'
 
 export function registerReactivityTools(deps: ToolRegistrationDeps): void {
   defineErrorCheckTool(deps, 'get-reactivity-relationships', {

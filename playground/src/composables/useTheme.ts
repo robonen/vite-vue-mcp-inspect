@@ -1,4 +1,4 @@
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, reactive, ref } from 'vue'
 
 const primaryColor = ref('#3498db')
 const fontSize = ref(16)

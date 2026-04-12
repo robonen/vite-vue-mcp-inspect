@@ -1,4 +1,4 @@
-import type { BrowserClient, ToolRegistrationDeps } from './types.ts'
+import type { BrowserClient, ToolRegistrationDeps } from './types'
 
 export interface ToolResult {
   [key: string]: unknown
@@ -23,8 +23,25 @@ export function isErrorResult(r: unknown): r is { error: string } {
 }
 
 interface ToolMeta {
-  description: string;
+  description: string
   inputSchema?: Record<string, unknown>
+}
+
+function defineTool(
+  deps: ToolRegistrationDeps,
+  name: string,
+  meta: ToolMeta,
+  call: (client: BrowserClient, args: any) => Promise<unknown>,
+  transform: (result: unknown, args: any) => ToolResult,
+): void {
+  deps.server.registerTool(name, meta as any, async (args: any) => {
+    try {
+      return transform(await deps.withTool(name, c => call(c, args)), args)
+    }
+    catch (e) {
+      return err(errorMessage(e))
+    }
+  })
 }
 
 /**
@@ -36,14 +53,7 @@ export function definePassthroughTool(
   meta: ToolMeta,
   call: (client: BrowserClient, args: any) => Promise<unknown>,
 ): void {
-  deps.server.registerTool(name, meta as any, async (args: any) => {
-    try {
-      return ok(await deps.withTool(name, c => call(c, args)))
-    }
-    catch (e) {
-      return err(errorMessage(e))
-    }
-  })
+  defineTool(deps, name, meta, call, ok)
 }
 
 /**
@@ -55,16 +65,9 @@ export function defineErrorCheckTool(
   meta: ToolMeta,
   call: (client: BrowserClient, args: any) => Promise<unknown>,
 ): void {
-  deps.server.registerTool(name, meta as any, async (args: any) => {
-    try {
-      const result = await deps.withTool(name, c => call(c, args))
-      if (isErrorResult(result)) return err(result.error)
-      return ok(result)
-    }
-    catch (e) {
-      return err(errorMessage(e))
-    }
-  })
+  defineTool(deps, name, meta, call, result =>
+    isErrorResult(result) ? err(result.error) : ok(result),
+  )
 }
 
 /**
@@ -78,14 +81,8 @@ export function defineSuccessCheckTool(
   call: (client: BrowserClient, args: any) => Promise<{ success: boolean; error?: string }>,
   onSuccess: (args: any) => unknown,
 ): void {
-  deps.server.registerTool(name, meta as any, async (args: any) => {
-    try {
-      const result = await deps.withTool(name, c => call(c, args))
-      if (!result.success) return err(result.error ?? 'Unknown error')
-      return ok(onSuccess(args))
-    }
-    catch (e) {
-      return err(errorMessage(e))
-    }
+  defineTool(deps, name, meta, call, (result, args) => {
+    const r = result as { success: boolean; error?: string }
+    return r.success ? ok(onSuccess(args)) : err(r.error ?? 'Unknown error')
   })
 }

@@ -8,7 +8,7 @@
     "play": "pnpm --filter vue-mcp-playground dev",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
-    "lint": "oxlint -c oxlint.config.ts"
+    "lint": "oxlint -c oxlint.config.ts packages playground"
   },
   "devDependencies": {
     "@robonen/oxlint": "^0.0.2",

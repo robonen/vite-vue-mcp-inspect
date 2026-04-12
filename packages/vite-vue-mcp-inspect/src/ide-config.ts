@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs'
 import fs from 'node:fs/promises'
 import { homedir } from 'node:os'
 import path from 'node:path'
+import { PLUGIN_NAME } from './constants'
 
 export interface IdeConfigOptions {
   /** Workspace root (from searchForWorkspaceRoot) */
@@ -72,7 +73,7 @@ export async function updateIdeConfigs(opts: IdeConfigOptions): Promise<void> {
       await writeJsonConfig(configPath, json => entry.update(json, serverName, mcpUrl))
     }
     catch (err) {
-      console.warn(`[vite-vue-mcp-inspect] Failed to update ${entry.label}: ${err}`)
+      console.warn(`[${PLUGIN_NAME}] Failed to update ${entry.label}: ${err}`)
     }
   }
 
@@ -87,7 +88,7 @@ export async function updateIdeConfigs(opts: IdeConfigOptions): Promise<void> {
         })
       }
       catch (err) {
-        console.warn(`[vite-vue-mcp-inspect] Failed to update Claude Desktop config: ${err}`)
+        console.warn(`[${PLUGIN_NAME}] Failed to update Claude Desktop config: ${err}`)
       }
     }
   }

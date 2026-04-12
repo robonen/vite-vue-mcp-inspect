@@ -1,7 +1,8 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import type { VueMcpContext, VueMcpOptions } from './types.ts'
-import type { BrowserClient, ToolRegistrationDeps, WithToolFn } from '../tools/types.ts'
-import { registerAppTools, registerComponentTools, registerPiniaTools, registerReactivityTools, registerRouterTools } from '../tools/register.ts'
+import type { VueMcpContext, VueMcpOptions } from './types'
+import type { BrowserClient, ToolRegistrationDeps, WithToolFn } from '../tools/types'
+import { registerAppTools, registerComponentTools, registerI18nTools, registerPiniaTools, registerProvideInjectTools, registerReactivityTools, registerRouterTools } from '../tools/register'
+import { PLUGIN_NAME } from '../constants'
 
 function getBrowserClient(ctx: VueMcpContext): BrowserClient {
   if (!ctx.rpc) {
@@ -20,7 +21,7 @@ export function createMcpServer(
   browserTimeout: number,
 ): McpServer {
   const server = new McpServer({
-    name: 'vite-vue-mcp-inspect',
+    name: PLUGIN_NAME,
     version: '1.0.0',
     ...options.mcpServerInfo,
   })
@@ -31,16 +32,20 @@ export function createMcpServer(
     timeout?: number,
   ): Promise<T> => {
     const client = getBrowserClient(ctx)
-    const timeoutMs = timeout ?? browserTimeout
-    return Promise.race([
-      call(client),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error(
-          `Tool "${toolName}" timed out after ${timeoutMs}ms.\n`
+    const ms = timeout ?? browserTimeout
+    return new Promise<T>((resolve, reject) => {
+      const timer = setTimeout(
+        () => reject(new Error(
+          `Tool "${toolName}" timed out after ${ms}ms.\n`
           + `Make sure the Vue app is open in a browser tab and @vue/devtools is loaded.`,
-        )), timeoutMs),
-      ),
-    ])
+        )),
+        ms,
+      )
+      call(client).then(
+        (v) => { clearTimeout(timer); resolve(v) },
+        (e) => { clearTimeout(timer); reject(e) },
+      )
+    })
   }
 
   const deps: ToolRegistrationDeps = { server, withTool, browserTimeout }
@@ -50,6 +55,8 @@ export function createMcpServer(
   registerRouterTools(deps)
   registerAppTools(deps)
   registerReactivityTools(deps)
+  registerProvideInjectTools(deps)
+  registerI18nTools(deps)
 
   return server
 }
