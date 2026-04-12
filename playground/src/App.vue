@@ -3,10 +3,10 @@ import { provide, ref } from 'vue'
 import { RouterView, RouterLink } from 'vue-router'
 import { themeKey, appVersionKey } from './injection-keys'
 
-// String key + Symbol key provides — оба варианта видны в get-provide-inject-tree
+// String key + Symbol key provides — both variants visible in get-provide-inject-tree
 const theme = ref<'light' | 'dark'>('light')
 provide('theme', theme)          // string key
-provide(themeKey, theme)         // Symbol key (типизированный)
+provide(themeKey, theme)         // Symbol key (typed)
 provide(appVersionKey, '1.0.0-playground')
 
 function toggleTheme() {

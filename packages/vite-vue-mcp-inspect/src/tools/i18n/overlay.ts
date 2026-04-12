@@ -1,6 +1,6 @@
 import { activeAppRecord } from '@vue/devtools-kit'
 
-// Единая форма ответа — один hidden class, нет полиморфного IC у вызывающего кода
+// Unified response shape — one hidden class, no polymorphic IC at call sites
 interface I18nInfo {
   detected: boolean
   locale: string | null
@@ -63,8 +63,8 @@ function isRef(v: any): v is { value: any } {
   return v !== null && typeof v === 'object' && '__v_isRef' in v
 }
 
-// for...in + accumulator вместо Object.values().reduce() —
-// не выделяет промежуточный массив на каждый рекурсивный вызов
+// for...in + accumulator instead of Object.values().reduce() —
+// avoids allocating an intermediate array on each recursive call
 function countKeys(obj: object, depth = 0): number {
   if (depth > 5 || typeof obj !== 'object' || obj === null) return 1
   let count = 0

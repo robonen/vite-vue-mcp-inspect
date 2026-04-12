@@ -5,7 +5,7 @@ import { themeKey, counterStepKey } from '../injection-keys'
 
 const counter = useCounterStore()
 
-// Inject via Symbol key — типобезопасный inject
+// Inject via Symbol key — type-safe inject
 const theme = inject(themeKey)
 
 // Provide step via Symbol key — component-level Symbol provide

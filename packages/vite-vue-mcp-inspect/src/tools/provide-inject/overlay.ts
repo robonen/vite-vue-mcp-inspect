@@ -32,8 +32,8 @@ export function createProvideInjectHandlers() {
           const provides = (instance as any).provides
           if (!provides) return
 
-          // Vue инициализирует provides как Object.create(parent.provides)
-          // Собственные ключи = не унаследованы от прототипа
+          // Vue initializes provides as Object.create(parent.provides)
+          // Own keys = not inherited from the prototype
           const ownProvides = getOwnProvides(provides)
           if (ownProvides.length === 0) return
 
@@ -50,7 +50,7 @@ export function createProvideInjectHandlers() {
   }
 }
 
-// Reflect.ownKeys = string + symbol за один проход; нет промежуточных массивов
+// Reflect.ownKeys = string + symbol in one pass; no intermediate arrays
 function serializeProvides(provides: object): ProvideEntry[] {
   const result: ProvideEntry[] = []
   for (const key of Reflect.ownKeys(provides)) {
@@ -65,7 +65,7 @@ function serializeProvides(provides: object): ProvideEntry[] {
   return result
 }
 
-// Собственные provides компонента — только ключи, которых нет у прототипа
+// Component's own provides — only keys not present in the prototype
 function getOwnProvides(provides: object): ProvideEntry[] {
   const parentProvides = Object.getPrototypeOf(provides) ?? {}
   const result: ProvideEntry[] = []

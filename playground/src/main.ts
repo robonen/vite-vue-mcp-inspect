@@ -74,7 +74,7 @@ app.use(createPinia())
 app.use(router)
 app.use(i18n)
 
-// App-level Symbol provide — виден в get-provide-inject-tree как appProvides с keyType: 'symbol'
+// App-level Symbol provide — visible in get-provide-inject-tree as appProvides with keyType: 'symbol'
 app.provide(analyticsKey, {
   track: (event: string) => console.log(`[analytics] ${event}`),
 })

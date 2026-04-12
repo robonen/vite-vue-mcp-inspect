@@ -5,7 +5,7 @@ import { themeKey, appVersionKey, analyticsKey } from '../injection-keys'
 
 const { t, locale, availableLocales } = useI18n()
 
-// Inject via Symbol keys — типобезопасный inject
+// Inject via Symbol keys — type-safe inject
 const theme = inject(themeKey, ref<'light' | 'dark'>('light'))
 const appVersion = inject(appVersionKey, 'unknown')
 const analytics = inject(analyticsKey)
