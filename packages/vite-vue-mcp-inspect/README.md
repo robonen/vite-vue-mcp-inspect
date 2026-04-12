@@ -63,6 +63,9 @@ export default defineConfig({
 | `edit-pinia-state` | Mutate Pinia state |
 | `get-app-info` | Vue version, plugins, router status |
 | `reload-app` | Trigger full page reload |
+| `get-provide-inject-tree` | Map all provide/inject relationships — app-level provides and per-component provides with keys and values |
+| `get-i18n-info` | vue-i18n status: current locale, available locales, fallback locale, message key counts |
+| `set-i18n-locale` | Change the active locale in vue-i18n at runtime |
 
 ## Configuration
 
@@ -101,8 +104,9 @@ VueMcp({
 | `updateWindsurfMcpJson` | `boolean \| IdeMcpConfig` | `true` | Auto-update `.windsurf/mcp.json` |
 | `updateVscodeMcpJson` | `boolean \| IdeMcpConfig` | `true` | Auto-update `.vscode/mcp.json` |
 | `updateClaudeDesktopConfig` | `boolean \| ClaudeDesktopConfig` | `false` | Auto-update Claude Desktop config |
-| `mcpServer` | `(vite, ctx) => McpServer` | - | Replace built-in MCP server |
-| `mcpServerSetup` | `(server, vite) => void \| McpServer` | - | Extend built-in MCP server |
+| `mcpServerInfo` | `{ name: string; version: string }` | - | Override MCP server name and version |
+| `mcpServer` | `(vite, ctx) => McpServer` | - | Replace built-in MCP server entirely |
+| `mcpServerSetup` | `(server, vite) => void \| McpServer` | - | Extend built-in MCP server with extra tools |
 
 ## IDE Integration
 
@@ -122,6 +126,10 @@ VueMcp({
   updateVscodeMcpJson: { serverName: 'my-app-mcp' },
 })
 ```
+
+## Multi-tab behaviour
+
+When multiple browser tabs are open, the plugin automatically targets the **most recently connected tab** for all MCP requests. If that tab is closed, the next request falls back to a broadcast and the first responding tab becomes the new target.
 
 ## License
 

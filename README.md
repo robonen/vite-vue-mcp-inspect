@@ -49,16 +49,21 @@ export default defineConfig({
 | `edit-pinia-state` | Mutate Pinia state |
 | `get-app-info` | Vue version, plugins, router status |
 | `reload-app` | Trigger full page reload |
+| `get-provide-inject-tree` | Map all provide/inject relationships — app-level provides and per-component provides with keys and values |
+| `get-i18n-info` | vue-i18n status: current locale, available locales, fallback locale, message key counts |
+| `set-i18n-locale` | Change the active locale in vue-i18n at runtime |
 
 ## Development Commands
 
 ```bash
-pnpm build       # build package
-pnpm dev         # watch package build
-pnpm play        # run playground
-pnpm test        # run all tests
-pnpm lint        # run oxlint
-pnpm typecheck   # run typescript checks
+pnpm build          # build package
+pnpm dev            # watch package build
+pnpm play           # run playground
+pnpm test           # run all tests
+pnpm test:unit      # run unit tests only
+pnpm test:browser   # run browser integration tests (requires running playground)
+pnpm lint           # run oxlint
+pnpm typecheck      # run typescript checks
 ```
 
 ## License
