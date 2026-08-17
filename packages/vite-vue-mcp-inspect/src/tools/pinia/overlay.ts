@@ -5,6 +5,7 @@ import {
 import {
   DEVTOOLS_TIMEOUT,
   PINIA_INSPECTOR_ID,
+  editInspectorState,
   stringify,
   withHighPerfDisabled,
   withTimeout,
@@ -44,7 +45,7 @@ export function createPiniaHandlers() {
       return withHighPerfDisabled(() =>
         withPiniaStore(query.storeName, async () => {
           const state = await withTimeout(
-            (devtools as any).ctx.api.getInspectorState({
+            devtools.ctx.api.getInspectorState({
               inspectorId: PINIA_INSPECTOR_ID,
               nodeId: query.storeName,
             }),
@@ -69,22 +70,18 @@ export function createPiniaHandlers() {
           return { success: false as const, error: 'Pinia inspector not found' }
         }
         return withPiniaStore(query.storeName, async () => {
-          await withTimeout(
-            (devtools as any).ctx.api.editInspectorState({
-              inspectorId: PINIA_INSPECTOR_ID,
-              nodeId: query.storeName,
-              path: query.path,
-              state: {
-                new: null,
-                remove: false,
-                type: query.valueType,
-                value: query.value,
-              },
-              type: undefined,
-            }),
-            DEVTOOLS_TIMEOUT,
-            'editInspectorState(pinia)',
-          )
+          editInspectorState({
+            inspectorId: PINIA_INSPECTOR_ID,
+            nodeId: query.storeName,
+            path: query.path,
+            state: {
+              new: null,
+              remove: false,
+              type: query.valueType,
+              value: query.value,
+            },
+            type: undefined,
+          })
           return { success: true as const }
         })
       })

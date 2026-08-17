@@ -2,6 +2,7 @@ import { devtools } from '@vue/devtools-kit'
 import {
   COMPONENTS_INSPECTOR_ID,
   DEVTOOLS_TIMEOUT,
+  editInspectorState,
   fetchComponentTree,
   flattenChildren,
   mapConcurrent,
@@ -21,7 +22,7 @@ export function createComponentHandlers() {
     async getDetailedComponentTree() {
       const root = await fetchComponentTree()
       const all = flattenChildren(root)
-      return mapConcurrent(all, 10, async (node: any) => {
+      return mapConcurrent(all, 10, async (node) => {
         try {
           const state = await withTimeout(
             devtools.api.getInspectorState({
@@ -68,22 +69,18 @@ export function createComponentHandlers() {
       return withComponentNode(
         query.componentName,
         async (node) => {
-          await withTimeout(
-            (devtools as any).ctx.api.editInspectorState({
-              inspectorId: COMPONENTS_INSPECTOR_ID,
-              nodeId: node.id,
-              path: query.path,
-              state: {
-                new: null,
-                remove: false,
-                type: query.valueType,
-                value: query.value,
-              },
-              type: undefined,
-            }),
-            DEVTOOLS_TIMEOUT,
-            'editInspectorState',
-          )
+          editInspectorState({
+            inspectorId: COMPONENTS_INSPECTOR_ID,
+            nodeId: node.id,
+            path: query.path,
+            state: {
+              new: null,
+              remove: false,
+              type: query.valueType,
+              value: query.value,
+            },
+            type: undefined,
+          })
           return { success: true as const }
         },
         (error) => ({ success: false as const, error }),
@@ -124,7 +121,7 @@ export function createComponentHandlers() {
     async getComponentByFile(query: { filePath: string }) {
       const root = await fetchComponentTree()
       const all = flattenChildren(root)
-      const match = all.find((n: any) => n.file?.endsWith(query.filePath))
+      const match = all.find(n => n.file?.endsWith(query.filePath))
       if (!match) {
         return {
           found: false,

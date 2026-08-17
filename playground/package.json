@@ -7,15 +7,15 @@
     "typecheck": "vue-tsc --noEmit"
   },
   "dependencies": {
-    "pinia": "^3.0.4",
-    "vue": "^3.5.31",
-    "vue-i18n": "^11.3.2",
-    "vue-router": "^5.0.4"
+    "pinia": "^4.0.3",
+    "vue": "^3.5.41",
+    "vue-i18n": "^11.4.8",
+    "vue-router": "^5.2.0"
   },
   "devDependencies": {
-    "@vitejs/plugin-vue": "^6.0.5",
-    "vite": "^8.0.3",
+    "@vitejs/plugin-vue": "^6.0.8",
+    "vite": "^8.2.1",
     "vite-vue-mcp-inspect": "workspace:*",
-    "vue-tsc": "^2.0.0"
+    "vue-tsc": "^3.3.10"
   }
 }

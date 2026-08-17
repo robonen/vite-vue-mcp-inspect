@@ -14,22 +14,30 @@ interface ProvideEntry {
   value: unknown
 }
 
+interface ComponentProviders {
+  componentName: string
+  file: string | null
+  provides: ProvideEntry[]
+}
+
 export function createProvideInjectHandlers() {
   return {
     async getProvideInjectTree() {
       return withHighPerfDisabled(async () => {
         const appRecord = activeAppRecord.value
-        const appCtxProvides = (appRecord?.app as any)?._context?.provides ?? {}
+        // App-level provides live on the internal app context
+        const appCtx = appRecord?.app as { _context?: { provides?: object } } | undefined
+        const appCtxProvides = appCtx?._context?.provides ?? {}
         const appProvides = serializeProvides(appCtxProvides)
 
         const root = await fetchComponentTree()
         const all = flattenChildren(root)
-        const componentProviders: any[] = []
+        const componentProviders: ComponentProviders[] = []
 
-        await mapConcurrent(all, 10, async (node: any) => {
+        await mapConcurrent(all, 10, async (node) => {
           const instance = appRecord?.instanceMap?.get(node.id)
           if (!instance) return
-          const provides = (instance as any).provides
+          const provides = (instance as unknown as { provides?: object }).provides
           if (!provides) return
 
           // Vue initializes provides as Object.create(parent.provides)
@@ -58,8 +66,8 @@ function serializeProvides(provides: object): ProvideEntry[] {
     result.push({
       key: isSymbol ? (key as symbol).toString() : (key as string),
       keyType: isSymbol ? 'symbol' : 'string',
-      valueType: typeof (provides as any)[key],
-      value: safeSerialize((provides as any)[key]),
+      valueType: typeof (provides as Record<PropertyKey, unknown>)[key],
+      value: safeSerialize((provides as Record<PropertyKey, unknown>)[key]),
     })
   }
   return result
@@ -75,8 +83,8 @@ function getOwnProvides(provides: object): ProvideEntry[] {
     result.push({
       key: isSymbol ? (key as symbol).toString() : (key as string),
       keyType: isSymbol ? 'symbol' : 'string',
-      valueType: typeof (provides as any)[key],
-      value: safeSerialize((provides as any)[key]),
+      valueType: typeof (provides as Record<PropertyKey, unknown>)[key],
+      value: safeSerialize((provides as Record<PropertyKey, unknown>)[key]),
     })
   }
   return result

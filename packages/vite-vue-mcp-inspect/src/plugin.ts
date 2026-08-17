@@ -5,7 +5,7 @@ import { noop } from '@robonen/stdlib'
 import ansis from 'ansis'
 import { searchForWorkspaceRoot } from 'vite'
 import type { Plugin, ResolvedConfig, ViteDevServer } from 'vite'
-import { createVueMcpContext, createHotRpc } from './core/rpc'
+import { createHotRpc, createVueMcpContext } from './core/rpc'
 import { createMcpServer } from './core/server'
 import { setupTransports } from './core/transport'
 import type { AddressInfo } from 'node:net'
@@ -18,6 +18,16 @@ const VIRTUAL_MODULE_ID = `virtual:${PLUGIN_NAME}-overlay`
 const RESOLVED_VIRTUAL_ID = `\0${VIRTUAL_MODULE_ID}`
 
 const CLIENT_PATH = path.resolve(fileURLToPath(new URL('.', import.meta.url)), 'client.js')
+
+function escapeRegExp(value: string): string {
+  return value.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+/**
+ * Hook filters must be RegExps, not strings — Vite resolves a string pattern as
+ * a picomatch glob joined against `cwd`, which would mangle a `\0virtual:` id.
+ */
+const RESOLVED_VIRTUAL_FILTER = new RegExp(`^\\0${escapeRegExp(VIRTUAL_MODULE_ID)}$`)
 
 function resolveIdeMcpConfig(
   opt: boolean | IdeMcpConfig | undefined,
@@ -55,7 +65,7 @@ export function createVueMcpPlugin(options: VueMcpOptions = {}): Plugin {
   const appendPattern = appendTo instanceof RegExp
     ? appendTo
     : appendTo
-      ? new RegExp(`${appendTo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`)
+      ? new RegExp(`${escapeRegExp(appendTo)}$`)
       : null
 
   let config: ResolvedConfig
@@ -69,18 +79,23 @@ export function createVueMcpPlugin(options: VueMcpOptions = {}): Plugin {
       config = resolvedConfig
     },
 
+    // Not filterable: the second branch keys off `importer`, and hook filters
+    // can only match `id`. Bare imports inside client.js arrive with arbitrary
+    // ids and must still resolve relative to the real file on disk.
     resolveId(id, importer) {
       if (id === VIRTUAL_MODULE_ID) return RESOLVED_VIRTUAL_ID
       if (importer === RESOLVED_VIRTUAL_ID) {
         return this.resolve(id, CLIENT_PATH, { skipSelf: true })
       }
+      return undefined
     },
 
-    load(id) {
-      if (id === RESOLVED_VIRTUAL_ID) {
+    load: {
+      filter: { id: RESOLVED_VIRTUAL_FILTER },
+      handler() {
         clientSource ??= readFileSync(CLIENT_PATH, 'utf-8')
         return clientSource
-      }
+      },
     },
 
     transformIndexHtml() {
@@ -92,11 +107,17 @@ export function createVueMcpPlugin(options: VueMcpOptions = {}): Plugin {
       }]
     },
 
-    transform(code, id) {
-      if (appendPattern?.test(id)) {
-        return { code: `${code}\nimport "${VIRTUAL_MODULE_ID}"`, map: null }
-      }
-    },
+    // Only registered when `appendTo` is set, so the default path adds no
+    // transform hook at all. The import is appended at end-of-file, which moves
+    // no existing code — `map: null` therefore keeps upstream sourcemaps valid.
+    transform: appendPattern
+      ? {
+          filter: { id: appendPattern },
+          handler(code) {
+            return { code: `${code}\nimport "${VIRTUAL_MODULE_ID}"`, map: null }
+          },
+        }
+      : undefined,
 
     async configureServer(vite: ViteDevServer) {
       const resolvedHost = _host ?? 'localhost'

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import type { ToolRegistrationDeps } from '../types'
-import { definePassthroughTool, defineErrorCheckTool, defineSuccessCheckTool } from '../server-utils'
+import { defineErrorCheckTool, definePassthroughTool, defineSuccessCheckTool } from '../server-utils'
 
 export function registerComponentTools(deps: ToolRegistrationDeps): void {
   definePassthroughTool(deps, 'get-component-tree', {

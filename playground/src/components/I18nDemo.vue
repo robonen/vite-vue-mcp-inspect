@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { inject, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { themeKey, appVersionKey, analyticsKey } from '../injection-keys'
+import { analyticsKey, appVersionKey, themeKey } from '../injection-keys'
 
 const { t, locale, availableLocales } = useI18n()
 

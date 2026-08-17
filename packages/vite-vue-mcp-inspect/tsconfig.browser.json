@@ -1,0 +1,8 @@
+{
+  "extends": "@robonen/tsconfig/tsconfig.dom.json",
+  "compilerOptions": {
+    "types": ["vite/client"]
+  },
+  "include": ["src/client.ts", "src/tools/handlers.ts", "src/tools/overlay-utils.ts", "src/tools/**/overlay.ts"],
+  "exclude": ["node_modules", "dist"]
+}

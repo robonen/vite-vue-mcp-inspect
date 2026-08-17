@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { inject, provide, ref } from 'vue'
 import { useCounterStore } from '../stores/counter'
-import { themeKey, counterStepKey } from '../injection-keys'
+import { counterStepKey, themeKey } from '../injection-keys'
 
 const counter = useCounterStore()
 

@@ -13,7 +13,8 @@ export function createReactivityHandlers() {
               return { graphNodes: [], relationships: [] }
             }
 
-            const raw = (instance as any).devtoolsRawSetupState || {}
+            const raw = (instance as unknown as { devtoolsRawSetupState?: Record<string, ReactiveState> })
+              .devtoolsRawSetupState ?? {}
             const stateItems: ReactivityStateItem[] = []
 
             for (const key of Object.keys(raw)) {
@@ -51,6 +52,42 @@ export function createReactivityHandlers() {
 
 // ── Reactivity helpers ───────────────────────────────────────────────────
 
+/**
+ * Vue's internal reactivity graph, as reached through `devtoolsRawSetupState`.
+ * These are runtime internals with no public typings — only the fields this
+ * traversal reads are declared.
+ */
+interface ReactiveSub {
+  constructor?: { name?: string }
+  fn?: { name?: string }
+  scheduler?: unknown
+  __v_isRef?: boolean
+  effect?: unknown
+  _value?: unknown
+  value?: unknown
+}
+
+interface ReactiveLink {
+  sub?: ReactiveSub
+  dep?: ReactiveDepNode
+  prevSub?: ReactiveLink
+  nextDep?: ReactiveLink
+}
+
+interface ReactiveDepNode {
+  subs?: ReactiveLink
+  computed?: { _value?: unknown }
+  key?: unknown
+}
+
+interface ReactiveState {
+  __v_isRef?: boolean
+  __v_isReactive?: boolean
+  effect?: unknown
+  dep?: ReactiveDepNode
+  deps?: ReactiveLink
+}
+
 interface ReactivityDep {
   type: string
   reference: unknown
@@ -65,7 +102,7 @@ interface ReactivityStateItem {
   deps: ReactivityDep[]
 }
 
-function getSubscriberType(sub: any): string {
+function getSubscriberType(sub: ReactiveSub): string {
   const name = sub?.constructor?.name
   if (name === 'ReactiveEffect') {
     if (sub.fn?.name === 'componentUpdateFn') return 'render'
@@ -80,12 +117,12 @@ function getSubscriberType(sub: any): string {
   return 'unknown'
 }
 
-function processReactivitySubs(state: any): ReactivityDep[] {
-  const depObj = (state as any).dep
+function processReactivitySubs(state: ReactiveState): ReactivityDep[] {
+  const depObj = state.dep
   if (!depObj?.subs) return []
 
   const result: ReactivityDep[] = []
-  for (let link = depObj.subs; link; link = link.prevSub) {
+  for (let link: ReactiveLink | undefined = depObj.subs; link; link = link.prevSub) {
     const sub = link.sub
     if (!sub) continue
 
@@ -106,11 +143,11 @@ function processReactivitySubs(state: any): ReactivityDep[] {
   return result
 }
 
-function processReactivityDeps(state: any): ReactivityDep[] {
+function processReactivityDeps(state: ReactiveState): ReactivityDep[] {
   if (!state.deps) return []
 
   const result: ReactivityDep[] = []
-  for (let link = state.deps; link; link = link.nextDep) {
+  for (let link: ReactiveLink | undefined = state.deps; link; link = link.nextDep) {
     const dep = link.dep
     if (!dep) continue
 
@@ -139,7 +176,7 @@ function buildReactivityRelationships(stateItems: ReactivityStateItem[]) {
 
   const depToItem = new Map<unknown, ReactivityStateItem>()
   for (const item of stateItems) {
-    const depObj = (item.reference as any)?.dep
+    const depObj = (item.reference as ReactiveState | undefined)?.dep
     if (depObj) depToItem.set(depObj, item)
   }
 
@@ -147,7 +184,7 @@ function buildReactivityRelationships(stateItems: ReactivityStateItem[]) {
     if (!nodeMap.has(item.reference)) {
       nodeMap.set(item.reference, {
         type: item.stateType,
-        data: { fn: null, value: (item.reference as any)?._value ?? (item.reference as any)?.value, key: item.key },
+        data: { fn: null, value: (item.reference as ReactiveSub | undefined)?._value ?? (item.reference as ReactiveSub | undefined)?.value, key: item.key },
         id: String(idCounter++),
       })
     }

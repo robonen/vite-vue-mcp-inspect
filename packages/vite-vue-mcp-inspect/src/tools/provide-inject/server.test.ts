@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { setup, setupHanging, text, rawText } from '../../__tests__/unit/helpers'
+import { rawText, setup, setupHanging, text } from '../../__tests__/unit/helpers'
 
 describe('get-provide-inject-tree', () => {
   it('returns app-level and component-level provides', async () => {

@@ -15,8 +15,18 @@ export interface IdeConfigOptions {
   claudeDesktop: false | { serverName: string; configPath: string }
 }
 
-async function writeJsonConfig(filePath: string, update: (existing: Record<string, any>) => void): Promise<void> {
-  let json: Record<string, any> = {}
+/**
+ * An IDE MCP config file. Servers live under `mcpServers` (Cursor, Windsurf,
+ * Claude Desktop) or `servers` (VS Code); any other keys are preserved as-is.
+ */
+interface McpConfigFile {
+  mcpServers?: Record<string, unknown>
+  servers?: Record<string, unknown>
+  [key: string]: unknown
+}
+
+async function writeJsonConfig(filePath: string, update: (existing: McpConfigFile) => void): Promise<void> {
+  let json: McpConfigFile = {}
   if (existsSync(filePath)) {
     try {
       const raw = await fs.readFile(filePath, 'utf-8')
@@ -37,7 +47,7 @@ export async function updateIdeConfigs(opts: IdeConfigOptions): Promise<void> {
     config: false | { serverName: string; configPath?: string }
     dir: string | null
     configFile: string
-    update: (json: Record<string, any>, serverName: string, url: string) => void
+    update: (json: McpConfigFile, serverName: string, url: string) => void
     label: string
   }
 

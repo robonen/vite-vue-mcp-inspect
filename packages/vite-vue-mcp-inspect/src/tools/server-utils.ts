@@ -1,3 +1,5 @@
+import type { ToolCallback } from '@modelcontextprotocol/sdk/server/mcp.js'
+import type { ShapeOutput, ZodRawShapeCompat } from '@modelcontextprotocol/sdk/server/zod-compat.js'
 import type { BrowserClient, ToolRegistrationDeps } from './types'
 
 export interface ToolResult {
@@ -22,36 +24,46 @@ export function isErrorResult(r: unknown): r is { error: string } {
   return r !== null && r !== undefined && typeof r === 'object' && 'error' in r
 }
 
-interface ToolMeta {
+interface ToolMeta<S extends ZodRawShapeCompat> {
   description: string
-  inputSchema?: Record<string, unknown>
+  inputSchema?: S
 }
 
-function defineTool(
+/**
+ * Arguments a tool handler receives, inferred from its zod input schema. Tools
+ * declared without a schema take no arguments.
+ */
+type ToolArgs<S extends ZodRawShapeCompat> = ShapeOutput<S>
+
+function defineTool<S extends ZodRawShapeCompat>(
   deps: ToolRegistrationDeps,
   name: string,
-  meta: ToolMeta,
-  call: (client: BrowserClient, args: any) => Promise<unknown>,
-  transform: (result: unknown, args: any) => ToolResult,
+  meta: ToolMeta<S>,
+  call: (client: BrowserClient, args: ToolArgs<S>) => Promise<unknown>,
+  transform: (result: unknown, args: ToolArgs<S>) => ToolResult,
 ): void {
-  deps.server.registerTool(name, meta as any, async (args: any) => {
+  const handler = async (args: ToolArgs<S>): Promise<ToolResult> => {
     try {
       return transform(await deps.withTool(name, c => call(c, args)), args)
     }
     catch (e) {
       return err(errorMessage(e))
     }
-  })
+  }
+  // `ToolCallback` is a conditional type over the schema; TypeScript defers it
+  // while `S` is still an unresolved type parameter, so it can't verify the
+  // handler here. Call sites remain fully typed via `ToolArgs<S>`.
+  deps.server.registerTool(name, meta, handler as unknown as ToolCallback<S>)
 }
 
 /**
  * Passthrough: result is forwarded as-is.
  */
-export function definePassthroughTool(
+export function definePassthroughTool<S extends ZodRawShapeCompat>(
   deps: ToolRegistrationDeps,
   name: string,
-  meta: ToolMeta,
-  call: (client: BrowserClient, args: any) => Promise<unknown>,
+  meta: ToolMeta<S>,
+  call: (client: BrowserClient, args: ToolArgs<S>) => Promise<unknown>,
 ): void {
   defineTool(deps, name, meta, call, ok)
 }
@@ -59,11 +71,11 @@ export function definePassthroughTool(
 /**
  * ErrorCheck: result may be `{ error: string }` — treated as tool error.
  */
-export function defineErrorCheckTool(
+export function defineErrorCheckTool<S extends ZodRawShapeCompat>(
   deps: ToolRegistrationDeps,
   name: string,
-  meta: ToolMeta,
-  call: (client: BrowserClient, args: any) => Promise<unknown>,
+  meta: ToolMeta<S>,
+  call: (client: BrowserClient, args: ToolArgs<S>) => Promise<unknown>,
 ): void {
   defineTool(deps, name, meta, call, result =>
     isErrorResult(result) ? err(result.error) : ok(result),
@@ -74,12 +86,12 @@ export function defineErrorCheckTool(
  * SuccessCheck: result has `{ success: boolean; error?: string }` — non-success is tool error.
  * `onSuccess` transforms the result for the ok() response.
  */
-export function defineSuccessCheckTool(
+export function defineSuccessCheckTool<S extends ZodRawShapeCompat>(
   deps: ToolRegistrationDeps,
   name: string,
-  meta: ToolMeta,
-  call: (client: BrowserClient, args: any) => Promise<{ success: boolean; error?: string }>,
-  onSuccess: (args: any) => unknown,
+  meta: ToolMeta<S>,
+  call: (client: BrowserClient, args: ToolArgs<S>) => Promise<{ success: boolean; error?: string }>,
+  onSuccess: (args: ToolArgs<S>) => unknown,
 ): void {
   defineTool(deps, name, meta, call, (result, args) => {
     const r = result as { success: boolean; error?: string }

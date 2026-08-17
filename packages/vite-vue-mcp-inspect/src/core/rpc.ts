@@ -12,7 +12,7 @@ export const RPC_EVENT = `${PLUGIN_NAME}:rpc`
 const CONNECT_EVENT = `${PLUGIN_NAME}:connect`
 
 interface HotClient {
-  send(event: string, data?: any): void
+  send(event: string, data?: unknown): void
 }
 
 /**
@@ -27,8 +27,8 @@ interface HotClient {
  * falls back to broadcast and the first responding tab becomes the new active.
  */
 export function createHotRpc(hot: {
-  send: (event: string, data?: any) => void
-  on: (event: string, handler: (data: any, client: HotClient) => void) => void
+  send: (event: string, data?: unknown) => void
+  on: (event: string, handler: (data: unknown, client: HotClient) => void) => void
 }) {
   let activeClient: HotClient | null = null
 

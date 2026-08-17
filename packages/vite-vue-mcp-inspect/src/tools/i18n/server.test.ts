@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { setup, setupHanging, text, rawText } from '../../__tests__/unit/helpers'
+import { rawText, setup, setupHanging, text } from '../../__tests__/unit/helpers'
 
 describe('get-i18n-info', () => {
   it('returns i18n data when vue-i18n is installed', async () => {

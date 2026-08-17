@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { useTestClient, parseResult } from '../../__tests__/browser/helpers'
+import { parseResult, useTestClient } from '../../__tests__/browser/helpers'
 
 const ctx = useTestClient()
 

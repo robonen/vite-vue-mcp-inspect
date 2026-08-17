@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { setup, text, rawText } from '../../__tests__/unit/helpers'
+import { rawText, setup, text } from '../../__tests__/unit/helpers'
 
 describe('get-pinia-tree', () => {
   it('returns store list', async () => {

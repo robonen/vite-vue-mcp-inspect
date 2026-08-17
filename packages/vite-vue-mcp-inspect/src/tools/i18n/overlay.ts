@@ -25,14 +25,14 @@ export function createI18nHandlers() {
         }
       }
       const g = i18n.global ?? i18n
-      const locale: string = isRef(g.locale) ? g.locale.value : g.locale
+      const locale = unwrap<string>(g.locale) ?? null
       const availableLocales: string[] = g.availableLocales ?? []
-      const fallbackLocale: string | null = isRef(g.fallbackLocale) ? g.fallbackLocale.value : (g.fallbackLocale ?? null)
-      const messages = isRef(g.messages) ? g.messages.value : (g.messages ?? {})
+      const fallbackLocale = unwrap<string>(g.fallbackLocale) ?? null
+      const messages = unwrap<Record<string, object>>(g.messages) ?? {}
       const messageStats: Record<string, number> = {}
       for (const loc in messages) {
         if (Object.prototype.hasOwnProperty.call(messages, loc)) {
-          messageStats[loc] = countKeys(messages[loc] as object)
+          messageStats[loc] = countKeys(messages[loc]!)
         }
       }
       return { detected: true, locale, availableLocales, fallbackLocale, messageStats, error: null }
@@ -55,12 +55,36 @@ export function createI18nHandlers() {
   }
 }
 
-function getI18nInstance(): any {
-  return activeAppRecord.value?.app?.config?.globalProperties?.$i18n ?? null
+/**
+ * The subset of a vue-i18n instance this plugin reads. Every field may be a
+ * plain value or a ref depending on legacy vs composition mode, hence `unknown`
+ * plus {@link isRef} narrowing at each use.
+ */
+interface I18nGlobal {
+  locale: unknown
+  availableLocales?: string[]
+  fallbackLocale?: unknown
+  messages?: unknown
 }
 
-function isRef(v: any): v is { value: any } {
+interface I18nInstance extends I18nGlobal {
+  global?: I18nGlobal
+}
+
+function getI18nInstance(): I18nInstance | null {
+  const globalProperties = activeAppRecord.value?.app?.config?.globalProperties as
+    | Record<string, unknown>
+    | undefined
+  return (globalProperties?.$i18n as I18nInstance | undefined) ?? null
+}
+
+function isRef(v: unknown): v is { value: unknown } {
   return v !== null && typeof v === 'object' && '__v_isRef' in v
+}
+
+/** Read a vue-i18n field that may be a ref (composition mode) or a plain value. */
+function unwrap<T>(v: unknown): T | undefined {
+  return (isRef(v) ? v.value : v) as T | undefined
 }
 
 // for...in + accumulator instead of Object.values().reduce() —
@@ -70,7 +94,7 @@ function countKeys(obj: object, depth = 0): number {
   let count = 0
   for (const key in obj) {
     if (Object.prototype.hasOwnProperty.call(obj, key)) {
-      count += countKeys((obj as any)[key], depth + 1)
+      count += countKeys((obj as Record<string, object>)[key]!, depth + 1)
     }
   }
   return count

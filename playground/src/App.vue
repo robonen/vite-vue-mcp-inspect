@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { provide, ref } from 'vue'
-import { RouterView, RouterLink } from 'vue-router'
-import { themeKey, appVersionKey } from './injection-keys'
+import { RouterLink, RouterView } from 'vue-router'
+import { appVersionKey, themeKey } from './injection-keys'
 
 // String key + Symbol key provides — both variants visible in get-provide-inject-tree
 const theme = ref<'light' | 'dark'>('light')
